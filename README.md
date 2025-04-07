@@ -1,2 +1,9 @@
-# Driving-On-Weather
-Autonomous driving according to weather changes
+# 개발중 필독 !!
+
+반드시 깃허브를 연동할땐 새로운 브랜치를 만들고 연결할 것 !!
+
+로컬 저장소와 원격 저장소를 연동하고 나서도 본인이 작업하고 있는 폴더가 main 브랜치면 안됨
+
+반드시 본인이 만든 브랜치로 checkout ( 브랜치 이동 ) 하고 작업해서 커밋, 푸쉬 할것
+
+절대 main 브랜치에 커밋, 푸쉬하지 말것!!!
