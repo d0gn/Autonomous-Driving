@@ -85,3 +85,10 @@ Autonomous-Driving/
     └── diagrams/
         └── system_block_diagram.png  # 시스템 다이어그램
 ```
+
+## 프로젝트 구성도
+
+세부 기능을 생각해가며 개발할 것
+
+![자율주행](https://github.com/user-attachments/assets/85092fe2-0c82-4cad-89a6-7b43f7b58bcf)
+
