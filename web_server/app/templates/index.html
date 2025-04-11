@@ -13,8 +13,8 @@
 
   <div class="container">
     <div class="video-container">
-      <img src="/video_feed1" alt="Camera 1">
-      <img src="/video_feed2" alt="Camera 2">
+      <img src="{{ url_for('video_feed1') }}" width="640" height="480">
+      <img src="{{ url_for('video_feed2') }}" width="640" height="480">
     </div>
 
     <button id="modeToggle">모드: 자동 (변경하려면 클릭)</button>
