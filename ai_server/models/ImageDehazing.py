@@ -1,56 +1,50 @@
 import torch
-import torch as nn
-import torch.nn.functional as F
+import torch.nn as nn
+import math
 
-class meodnet(nn.module):
-    def __init__(self):
-        super(meodnet,self).__init()
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=1, stride=1, padding=0)
-        self.conv2 = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=3, stride=1, padding=1)
-        self.conv3 = nn.Conv2d(in_channels=6, out_channels=3, kernel_size=5, stride=1, padding=2)
-        self.conv4 = nn.Conv2d(in_channels=6, out_channels=3, kernel_size=7, stride=1, padding=3)
-        self.conv5 = nn.Conv2d(in_channels=12, out_channels=3, kernel_size=3, stride=1, padding=1)
-        self.b = 1
-    def forward(self,x):
-        x1 = F.relu(self.conv1(x))
-        x2 = F.relu(self.conv2(x1))
-        cat1 = torch.cat((x1, x2), 1)
-        x3 = F.relu(self.conv3(cat1))
-        cat2 = torch.cat((x2, x3), 1)
-        x4 = F.relu(self.conv4(cat2))
-        cat3 = torch.cat((x1, x2, x3, x4), 1)
-        k = F.relu(self.conv5(cat3))
+class dehaze_net(nn.Module):
 
-        if k.size() != x.size():
-            raise Exception("different size")
+	def __init__(self):
+		super(dehaze_net, self).__init__()
 
-        output = k * x - k + self.b
-        return F.relu(output)
+		self.relu = nn.ReLU(inplace=True)
+	
+		self.e_conv1 = nn.Conv2d(3,3,1,1,0,bias=True) 
+		self.e_conv2 = nn.Conv2d(3,3,3,1,1,bias=True) 
+		self.e_conv3 = nn.Conv2d(6,3,5,1,2,bias=True) 
+		self.e_conv4 = nn.Conv2d(6,3,7,1,3,bias=True) 
+		self.e_conv5 = nn.Conv2d(12,3,3,1,1,bias=True) 
+		
+	def forward(self, x):
+		source = []
+		source.append(x)
+
+		x1 = self.relu(self.e_conv1(x))
+		x2 = self.relu(self.e_conv2(x1))
+
+		concat1 = torch.cat((x1,x2), 1)
+		x3 = self.relu(self.e_conv3(concat1))
+
+		concat2 = torch.cat((x2, x3), 1)
+		x4 = self.relu(self.e_conv4(concat2))
+
+		concat3 = torch.cat((x1,x2,x3,x4),1)
+		x5 = self.relu(self.e_conv5(concat3))
+
+		clean_image = self.relu((x5 * x) - x5 + 1) 
+		
+		return clean_image
+
+		
 
 
-class AODnet(nn.Module):
-    def __init__(self):
-        super(AODnet, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=1, stride=1, padding=0)
-        self.conv2 = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=3, stride=1, padding=1)
-        self.conv3 = nn.Conv2d(in_channels=6, out_channels=3, kernel_size=5, stride=1, padding=2)
-        self.conv4 = nn.Conv2d(in_channels=6, out_channels=3, kernel_size=7, stride=1, padding=3)
-        self.conv5 = nn.Conv2d(in_channels=12, out_channels=3, kernel_size=3, stride=1, padding=1)
-        self.b = 1
+			
 
-    def forward(self, x):
-        x1 = F.relu(self.conv1(x))
-        x2 = F.relu(self.conv2(x1))
-        cat1 = torch.cat((x1, x2), 1)
-        x3 = F.relu(self.conv3(cat1))
-        cat2 = torch.cat((x2, x3), 1)
-        x4 = F.relu(self.conv4(cat2))
-        cat3 = torch.cat((x1, x2, x3, x4), 1)
-        k = F.relu(self.conv5(cat3))
+			
+			
 
-        if k.size() != x.size():
-            raise Exception("different size haze image")
 
-        output = k * x - k + self.b
-        return F.relu(output)
+
+
+
 

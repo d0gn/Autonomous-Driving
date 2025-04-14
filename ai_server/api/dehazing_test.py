@@ -42,7 +42,7 @@ def process_video(video_path):
     cap.release()
 
 if __name__ == '__main__':
-    video_list = glob.glob("test_videos/262215_medium.mp4")  # 동영상 파일 경로 수정
+    video_list = glob.glob("test_videos/262215_medium.mp4")  
 
     for video in video_list:
         process_video(video)
