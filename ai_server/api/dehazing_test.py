@@ -14,7 +14,7 @@ def dehaze_image(image):
     data_hazy = data_hazy.permute(2, 0, 1).unsqueeze(0).cuda()
 
     dehaze_net = net.dehaze_net().cuda()
-    dehaze_net.load_state_dict(torch.load('snapshots/dehazer.pth'))
+    dehaze_net.load_state_dict(torch.load('./checkpoints/dehazer.pth'))
 
     clean_image = dehaze_net(data_hazy)
     return clean_image.squeeze(0).permute(1, 2, 0).cpu().detach().numpy()
