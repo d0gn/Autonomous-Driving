@@ -8,7 +8,7 @@ import sys
 import argparse
 import time
 import dataloader
-import net
+import ImageDehazing
 import numpy as np
 from torchvision import transforms
 
@@ -24,7 +24,7 @@ def weights_init(m):
 
 def train(config):
 
-	dehaze_net = net.dehaze_net().cuda()
+	dehaze_net = ImageDehazing.meodnet().cuda()
 	dehaze_net.apply(weights_init)
 
 	train_dataset = dataloader.dehazing_loader(config.orig_images_path,
