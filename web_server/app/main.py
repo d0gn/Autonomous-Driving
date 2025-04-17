@@ -1,12 +1,43 @@
 from flask import Flask, render_template, Response, request, jsonify
+import torch
 import threading
 import time
-
+from ai_server.models.ImageDehazing import dehaze_net
+import numpy as np
+import cv2
 app = Flask(__name__)
+
+dehaze_net_model = dehaze_net()
+state_dict = torch.load("C:/Users/win/Autonomous-Driving/ai_server/checkpoints/dehazer.pth", map_location=torch.device('cpu'))
+dehaze_net_model.load_state_dict(state_dict)
+dehaze_net_model.eval()
 
 # 최신 프레임 저장 변수 (카메라 1, 2 용)
 last_frame_1 = None
 last_frame_2 = None
+
+#전처리 함수
+def preprocess_for_model(img_np):
+    img = cv2.resize(img_np, (640, 480))
+    img = img.astype(np.float32) / 255.0
+    img = torch.from_numpy(img).permute(2, 0, 1).unsqueeze(0)
+    return img
+
+#후처리 함수
+def postprocess_model_output(output_tensor):
+    output_tensor = output_tensor.squeeze(0).permute(1,2,0).clamp(0,1)
+    output_np = (output_tensor.numpy()*255).astype(np.uint8)
+    return output_np
+
+#추론 파이프라인 함수
+def run_aodnet_pipeline(frame_bytes):
+    img_np = cv2.imdecode(np.frombuffer(frame_bytes, np.uint8), cv2.IMREAD_COLOR)
+    img_tensor = preprocess_for_model(img_np)
+    with torch.no_grad():
+        output_tensor = dehaze_net_model(img_tensor)
+    output_np = postprocess_model_output(output_tensor)
+    _, processed_jpeg = cv2.imencode('.jpg', output_np)
+    return processed_jpeg.tobytes()
 
 @app.route("/")
 def index():
@@ -14,12 +45,13 @@ def index():
 
 @app.route("/upload_frame1", methods=["POST"])
 def upload_frame1():
-    global last_frame_1
+    global last_frame_1, last_frame_2
     file = request.files.get('frame')
-    print(request.files)
     if file:
-        last_frame_1 = file.read()
-        return 'Frame1 received', 200
+        frame_bytes = file.read()
+        last_frame_1 = frame_bytes
+        last_frame_2 = run_aodnet_pipeline(frame_bytes)
+        return 'Frame1 received and processed', 200
     return 'No frame1', 400
 
 @app.route('/favicon.ico')
