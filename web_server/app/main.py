@@ -1,12 +1,13 @@
 from flask import Flask, render_template, Response, request, jsonify
+from flask_socketio import SocketIO, emit
+import base64
 import torch
 import threading
 import time
 from ai_server.models.ImageDehazing import dehaze_net
 import numpy as np
 import cv2
-app = Flask(__name__)
-
+"""
 dehaze_net_model = dehaze_net()
 state_dict = torch.load("C:/Users/win/Autonomous-Driving/ai_server/checkpoints/dehazer.pth", map_location=torch.device('cpu'))
 dehaze_net_model.load_state_dict(state_dict)
@@ -30,7 +31,7 @@ def postprocess_model_output(output_tensor):
     return output_np
 
 #추론 파이프라인 함수
-def run_aodnet_pipeline(frame_bytes):
+def run_dehazenet_pipeline(frame_bytes):
     img_np = cv2.imdecode(np.frombuffer(frame_bytes, np.uint8), cv2.IMREAD_COLOR)
     img_tensor = preprocess_for_model(img_np)
     with torch.no_grad():
@@ -38,73 +39,51 @@ def run_aodnet_pipeline(frame_bytes):
     output_np = postprocess_model_output(output_tensor)
     _, processed_jpeg = cv2.imencode('.jpg', output_np)
     return processed_jpeg.tobytes()
+"""
+app = Flask(__name__)
+socketio = SocketIO(app)
+connected_clients = []
 
 @app.route("/")
 def index():
     return render_template("index.html")
 
-@app.route("/upload_frame1", methods=["POST"])
-def upload_frame1():
+@socketio.on('connect')
+def on_connect(auth):
+    connected_clients.append(request.sid)
+    print('클라이언트 연결')
+
+@socketio.on('video_frame')
+def on_video_frame(data):
+    emit('video_frame', data, broadcast = True)
+""""
+#def handle_video_frame(data):
     global last_frame_1, last_frame_2
-    file = request.files.get('frame')
-    if file:
-        frame_bytes = file.read()
-        last_frame_1 = frame_bytes
-        last_frame_2 = run_aodnet_pipeline(frame_bytes)
-        return 'Frame1 received and processed', 200
-    return 'No frame1', 400
 
-@app.route('/favicon.ico')
-def favicon():
-    return '', 204  # 204 No Content 응답
+    # 원본 디코딩
+    frame_bytes = base64.b64decode(data)
+    last_frame_1 = frame_bytes
 
-@app.route("/upload_frame2", methods=["POST"])
-def upload_frame2():
-    global last_frame_2
-    file = request.files.get('frame')
-    if file:
-        last_frame_2 = file.read()
-        return 'Frame2 received', 200
-    return 'No frame2', 400
+    # 원본 프레임 그대로 클라이언트 전송
+    original_b64 = base64.b64encode(frame_bytes).decode('utf-8')
+    emit('video_original', original_b64, broadcast=True)
 
-@app.route("/video_feed1")
-def video_feed1():
-    def generate():
-        while True:
-            if last_frame_1:
-                yield (b"--frame\r\n"
-                       b"Content-Type: image/jpeg\r\n\r\n" + last_frame_1 + b"\r\n")
-            time.sleep(0.05)
-    return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
+    # 디헤이징 처리
+    processed_bytes = run_dehazenet_pipeline(frame_bytes)
+    last_frame_2 = processed_bytes
 
-@app.route("/video_feed2")
-def video_feed2():
-    def generate():
-        while True:
-            if last_frame_2:
-                yield (b"--frame\r\n"
-                       b"Content-Type: image/jpeg\r\n\r\n" + last_frame_2 + b"\r\n")
-            time.sleep(0.05)
-    return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
+    # 디헤이징 결과 전송
+    processed_b64 = base64.b64encode(processed_bytes).decode('utf-8')
+    emit('video_dehazed', processed_b64, broadcast=True)
+"""
+@socketio.on("change_mode")
+def handel_mode_changes(data):
+    mode = data.get("mode")
 
-@app.route("/mode", methods=["POST"])
-def change_mode():
-    mode = request.json.get("mode")
-    print(f"모드 변경됨: {mode}")
-    return jsonify(success=True)
-
-@app.route("/control", methods=["POST"])
-def control():
-    command = request.json.get("command")
-    print(f"수동 명령 수신: {command}")
-    return jsonify(success=True)
-
-# 카메라 프레임 함수는 사용하지 않음
-def get_camera_frame_1():
-    return b''
-
-def get_camera_frame_2():
-    return b''
+@socketio.on("manual_control")
+def handle_manual_control(data):
+    command = data.get("command")
+    print(f"수동 제어 명령어 : {command}")
 
 if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    socketio.run(app, port=5000)
