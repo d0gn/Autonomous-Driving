@@ -72,7 +72,6 @@ def handle_video_frame(data):
         # 클라이언트에 원본 전송
         original_b64 = base64.b64encode(frame_bytes).decode('utf-8')
         emit('video_original', original_b64, broadcast=True)
-        emit('video_dehazed', original_b64, broadcast=True)
 
         # # 디헤이징 처리 및 전송
         # processed_bytes = run_dehazenet_pipeline(frame_bytes)
