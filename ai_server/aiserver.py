@@ -7,15 +7,15 @@ import sys
 import time
 # import argparse # 서버 실행 시 필수는 아니지만, 필요시 사용
 from pathlib import Path
-
+#aaa
 # 서드파티 라이브러리
 from flask import Flask, request, jsonify
 from flask_socketio import SocketIO, emit
 import cv2
 import numpy as np
-from PIL import Image # Dehazing 전처리 시 필요할 수 있음
-# import glob # 서버 동작에는 필수는 아님
-# import base64 # 이미지를 base64로 받을 경우 필요
+from PIL import Image 
+# import glob
+# import base64 
 
 # PyTorch 및 관련 라이브러리
 import torch
@@ -23,8 +23,8 @@ import torch.nn as nn
 import torchvision
 import torch.backends.cudnn as cudnn
 # import torch.optim # 추론 서버이므로 최적화는 필요 없음
-from torchvision import transforms # Dehazing 전처리 시 필요
-import net # 김대영7861님의 dehazing 모델 아키텍처 정의 (net.py 파일 필요)
+from torchvision import transforms
+import net 
 
 # --- 글로벌 변수 및 모델 로딩 설정 ---
 # 사용할 디바이스 설정 (CUDA GPU 또는 CPU)
@@ -35,7 +35,7 @@ print(f"💡 모델 추론 장치: {DEVICE}")
 global_dehaze_net = None
 global_yolo_detector = None
 
-# YOLO Detector 클래스 정의 (김대영7861님의 코드에서 가져옴)
+
 # 별도 파일(예: yolo_detector.py)로 분리하여 임포트하는 것이 더 깔끔합니다.
 # 여기서는 요청에 따라 서버 코드 파일 안에 포함시킵니다.
 class YOLODetector:
@@ -272,10 +272,9 @@ def process_image_and_determine_command(image_np_bgr):
          print("🔍 YOLO 모델이 로딩되지 않았거나 유효한 이미지가 없어 객체 검출 건너뜁니다.")
 
 
-    # --- 단계 5: 검출 결과를 바탕으로 명령 결정 ---
-    # TODO: 여기에 김대영7861님의 핵심 명령 결정 로직을 구현해주세요.
-    # 'detections' 리스트를 분석하여 원하는 조건에 따라 명령(예: 'forward', 'backward', 'stop' 등)을
-    # 결정하고 'command' 변수에 할당합니다.
+
+    
+
     print("🧠 검출 결과를 바탕으로 라즈베리파이 명령 결정 중...")
 
     if detections:
