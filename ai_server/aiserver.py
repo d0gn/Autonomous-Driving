@@ -137,7 +137,7 @@ def load_models():
     try:
         # net.py 파일에 정의된 dehaze_net() 모델 아키텍처 사용
         global_dehaze_net = net.dehaze_net()
-        checkpoint_path = './checkpoints/dehazer.pth'
+        checkpoint_path = './Autonomous-Driving-aiserver/ai_server/checkpoints/dehazer.pth'
         if not os.path.exists(checkpoint_path):
              print(f"🚨 경고: Dehazing 체크포인트 파일이 없습니다: {checkpoint_path}")
              print("Dehazing 모델 로딩을 건너뜁니다. Dehazing 없이 YOLO만 실행됩니다.")
