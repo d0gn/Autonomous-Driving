@@ -12,7 +12,7 @@ import cv2
 
 random.seed(1143)
 
-
+#데이터 섞기
 def populate_train_list(orig_images_path, hazy_images_path):
 
 

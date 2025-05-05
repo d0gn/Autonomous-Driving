@@ -60,7 +60,7 @@ def train(config):
 				
 				torch.save(dehaze_net.state_dict(), config.snapshots_folder + "Epoch" + str(epoch) + '.pth') 		
 
-		# Validation Stage
+		# 검증
 		for iter_val, (img_orig, img_haze) in enumerate(val_loader):
 
 			img_orig = img_orig.cuda()

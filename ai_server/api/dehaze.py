@@ -14,7 +14,7 @@ from torchvision import transforms
 from PIL import Image
 import glob
 
-
+#이미지를 디헤이징
 def dehaze_image(image_path):
 
 	data_hazy = Image.open(image_path)

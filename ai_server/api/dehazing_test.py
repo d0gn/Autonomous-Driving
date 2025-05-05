@@ -7,7 +7,7 @@ import numpy as np
 from PIL import Image
 import os
 import net
-
+#이미지 디헤이징
 def dehaze_image(image):
     data_hazy = (np.asarray(image) / 255.0)
     data_hazy = torch.from_numpy(data_hazy).float()
@@ -18,7 +18,7 @@ def dehaze_image(image):
 
     clean_image = dehaze_net(data_hazy)
     return clean_image.squeeze(0).permute(1, 2, 0).cpu().detach().numpy()
-
+#비디오처리
 def process_video(video_path):
     cap = cv2.VideoCapture(video_path)
     frame_count = 0

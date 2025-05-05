@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import math
-
+#디헤이징 모델
 class dehaze_net(nn.Module):
 
 	def __init__(self):
