@@ -22,18 +22,17 @@ import torchvision
 import torch.backends.cudnn as cudnn
 # import torch.optim # 추론 서버이므로 최적화는 필요 없음
 from torchvision import transforms
+script_dir = Path(__file__).parent # 현재 스크립트의 디렉토리 경로
+model_dir = script_dir / 'api' # 'model' 디렉토리의 경로
+sys.path.append(str(model_dir)) # sys.path에 'model' 디렉토리 경로 추가
 import net 
 import yolodetect as yd
-# --- 글로벌 변수 및 모델 로딩 설정 ---
-# 사용할 디바이스 설정 (CUDA GPU 또는 CPU)
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"💡 모델 추론 장치: {DEVICE}")
 
-# 모델 인스턴스를 저장할 전역 변수
 global_dehaze_net = None
 global_yolo_detector = None
 
-# --- 모델 로딩 함수 ---
 def load_models():
     """서버 시작 시 Dehazing 및 YOLO 모델을 로딩합니다."""
     global global_dehaze_net, global_yolo_detector, DEVICE
@@ -43,7 +42,7 @@ def load_models():
     print("⏳ Dehazing 모델 로딩 중...")
     try:
         global_dehaze_net = net.dehaze_net()
-        checkpoint_path = './Autonomous-Driving-aiserver/ai_server/checkpoints/dehazer.pth'
+        checkpoint_path = './ai_server/checkpoints/dehazer.pth'
         if not os.path.exists(checkpoint_path):
              print(f"🚨 경고: Dehazing 체크포인트 파일이 없습니다: {checkpoint_path}")
              print("Dehazing 모델 로딩을 건너뜁니다. Dehazing 없이 YOLO만 실행됩니다.")
@@ -76,8 +75,6 @@ def load_models():
 
     print("✅ 모델 로딩 종료.")
 
-
-# Flask 애플리케이션 및 SocketIO 초기화
 app = Flask(__name__)
 
 app.config['SECRET_KEY'] = 'your_safe_and_complex_secret_key_here'
@@ -97,63 +94,56 @@ def process_image_and_determine_command(image_np_bgr):
 
     processed_image_np_bgr = image_np_bgr # 디헤이징 실패 시 원본 이미지 사용
 
-    # --- 단계 1&2: 이미지 디헤이징 ---
     if global_dehaze_net is not None:
         print("✨ 이미지 디헤이징 처리 중...")
         try:
-            # OpenCV BGR (HxWx3) numpy 배열을 PyTorch 입력 형식으로 변환
-            # BGR -> RGB
+            
             image_np_rgb = cv2.cvtColor(image_np_bgr, cv2.COLOR_BGR2RGB)
-            # HxWx3 numpy -> CxHxW tensor, 정규화 [0, 1]
             image_tensor = torch.from_numpy(image_np_rgb.copy()).permute(2, 0, 1).float().unsqueeze(0) / 255.0
             image_tensor = image_tensor.to(DEVICE)
 
-            # 디헤이징 모델 적용
-            with torch.no_grad(): # 추론 시에는 그래디언트 계산 비활성화
-                # 모델 출력은 일반적으로 [0, 1] 범위의 RGB Tensor (NCHW)
+            with torch.no_grad(): 
+                
                 dehazed_tensor = global_dehaze_net(image_tensor)
 
-            # 디헤이징 결과 Tensor를 OpenCV BGR numpy 배열로 변환
-            # 배치 차원 제거, CxHxW -> HxWx3
             dehazed_np_rgb = dehazed_tensor.squeeze(0).permute(1, 2, 0).cpu().numpy()
-            # [0, 1] 범위 -> [0, 255] 범위, uint8 타입으로 변환
+            
             dehazed_np_rgb = (dehazed_np_rgb * 255.0).astype(np.uint8)
-            # RGB -> BGR
+            
             dehazed_np_bgr = cv2.cvtColor(dehazed_np_rgb, cv2.COLOR_RGB2BGR)
 
-            processed_image_np_bgr = dehazed_np_bgr # 디헤이징 성공 시 결과 이미지 사용
+            processed_image_np_bgr = dehazed_np_bgr 
 
             print("✅ 디헤이징 완료.")
-            # 디버깅을 위해 디헤이징된 이미지를 파일로 저장할 수 있습니다.
-            # cv2.imwrite("dehazed_output.jpg", processed_image_np_bgr)
-            # print("디헤이징된 이미지 임시 저장됨: dehazed_output.jpg")
+            
+            cv2.imwrite("dehazed_output.jpg", processed_image_np_bgr)
+            print("디헤이징된 이미지 임시 저장됨: dehazed_output.jpg")
 
         except Exception as e:
             print(f"❌ 디헤이징 처리 중 오류 발생: {e}")
-            # 오류 발생 시 원본 이미지를 그대로 사용
+            
             processed_image_np_bgr = image_np_bgr
             print("디헤이징 실패, 원본 이미지로 다음 단계 진행.")
     else:
          print("✨ 디헤이징 모델이 로딩되지 않았습니다. 디헤이징 건너뜁니다.")
-         processed_image_np_bgr = image_np_bgr # 모델 없으면 원본 사용
+         processed_image_np_bgr = image_np_bgr
 
     # --- 단계 3&4: YOLO 객체 검출 및 결과 분석 ---
-    detections = [] # 검출된 객체 정보를 저장할 리스트
+    detections = [] 
     if global_yolo_detector is not None and processed_image_np_bgr is not None:
         print("🔍 YOLO 객체 검출 처리 중...")
         try:
-            # 디헤이징된 (또는 원본) 이미지를 YOLO Detector에 전달
+            
             results, annotated_img = global_yolo_detector.detect_array(processed_image_np_bgr)
 
             if results is not None:
-                 # 검출 결과를 파싱하여 필요한 정보 추출
                  detections = global_yolo_detector.extract_detections(results)
                  print(f"✅ YOLO 객체 검출 완료. 총 {len(detections)}개 객체 검출됨.")
 
                  # 디버깅을 위해 검출 결과가 표시된 이미지를 파일로 저장할 수 있습니다.
                  # if annotated_img is not None:
-                 #     cv2.imwrite("yolo_output.jpg", annotated_img)
-                 #     print("YOLO 결과 이미지 임시 저장됨: yolo_output.jpg")
+                 cv2.imwrite("yolo_output.jpg", annotated_img)
+                 print("YOLO 결과 이미지 임시 저장됨: yolo_output.jpg")
 
             else:
                 print("🚨 YOLO 객체 검출 결과가 없습니다.")
@@ -201,16 +191,10 @@ def process_image_and_determine_command(image_np_bgr):
 
 # ------------------------------------------------------
 
-
-# SocketIO 이벤트 핸들러 (이전 코드와 동일)
 @socketio.on('connect')
 def handle_connect():
     """클라이언트 연결 시 호출"""
     print('✅ 클라이언트가 연결되었습니다.')
-    # 연결된 클라이언트의 sid (세션 ID)를 저장해두면 특정 클라이언트에만 메시지 전송 가능
-    # global connected_client_sid # 예시: 전역 변수에 저장
-    # connected_client_sid = request.sid
-    # print(f"연결된 클라이언트 SID: {connected_client_sid}")
 
 
 @socketio.on('disconnect')
@@ -224,14 +208,14 @@ def handle_ack(data):
     """클라이언트로부터 ACK 메시지 수신 시 호출"""
     print(f'👍 클라이언트로부터 ACK 수신: {data}')
 
-# HTTP POST 요청을 처리하는 라우트 (수정됨: 이미지 처리 파이프라인 함수 호출)
+# HTTP POST 요청을 처리하는 라우트
 @app.route('/upload_frame1', methods=['POST'])
 def upload_frame():
     """라즈베리파이로부터 이미지 프레임을 수신하고 처리"""
     print("\n--- 이미지 수신 라우트 시작 ---")
     print("📥 이미지 프레임 수신 요청 받음")
 
-    # HTTP 요청에 'frame' 이름으로 파일 데이터가 있는지 확인
+   
     if 'frame' not in request.files:
         print("🚨 오류: 'frame' 파일 파트가 요청에 없습니다.")
         print("--- 이미지 수신 라우트 종료 (오류) ---")
@@ -239,7 +223,7 @@ def upload_frame():
 
     file = request.files['frame']
 
-    # 파일 이름이 비어있는지 확인
+    
     if file.filename == '':
         print("🚨 오류: 선택된 파일 이름이 없습니다.")
         print("--- 이미지 수신 라우트 종료 (오류) ---")
@@ -265,7 +249,7 @@ def upload_frame():
             # --- 수정: 이미지 처리 파이프라인 함수 호출 ---
             # 디코딩된 OpenCV BGR numpy 이미지를 처리 함수에 전달
             command_to_send = process_image_and_determine_command(image_np_bgr)
-            # --------------------------
+           
 
             # 이미지 처리 결과 (command_to_send 변수)에 따라 명령 전송
             if command_to_send:
@@ -299,7 +283,7 @@ if __name__ == '__main__':
     # 모델 로딩 실패 여부 확인 (선택 사항, 실패 시 서버 시작을 중단할 수도 있음)
     if global_dehaze_net is None and global_yolo_detector is None:
          print("❌ 경고: Dehazing 모델과 YOLO 모델 모두 로딩에 실패했습니다. 이미지 처리 기능이 제대로 동작하지 않을 수 있습니다.")
-         # raise SystemExit("필수 모델 로딩 실패. 서버 시작 중단.") # 필요시 주석 해제하여 서버 시작 중단
+         
 
     print("🚀 Flask SocketIO 서버를 시작합니다...")
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)

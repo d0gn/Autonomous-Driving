@@ -23,7 +23,6 @@ import torchvision
 import torch.backends.cudnn as cudnn
 # import torch.optim # 추론 서버이므로 최적화는 필요 없음
 from torchvision import transforms
-import net 
 # 별도 파일(예: yolo_detector.py)로 분리하여 임포트하는 것이 더 깔끔합니다.
 # 여기서는 요청에 따라 서버 코드 파일 안에 포함시킵니다.
 class YOLODetector:
