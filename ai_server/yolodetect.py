@@ -1,13 +1,8 @@
-
-# --- 필요한 라이브러리 임포트 ---
-# 표준 라이브러리
 import os
 import sys
 import time
-# import argparse # 서버 실행 시 필수는 아니지만, 필요시 사용
+# import argparse 
 from pathlib import Path
-#aaa
-# 서드파티 라이브러리
 from flask import Flask, request, jsonify
 from flask_socketio import SocketIO, emit
 import cv2
@@ -23,25 +18,25 @@ import torchvision
 import torch.backends.cudnn as cudnn
 # import torch.optim # 추론 서버이므로 최적화는 필요 없음
 from torchvision import transforms
-# 별도 파일(예: yolo_detector.py)로 분리하여 임포트하는 것이 더 깔끔합니다.
-# 여기서는 요청에 따라 서버 코드 파일 안에 포함시킵니다.
+
+
 class YOLODetector:
     def __init__(self, weights_path='yolov5s.pt', conf_thres=0.25, img_size=640, device='cpu'): # img_size 기본값 640으로 변경
         self.device = device
         print(f"💡 YOLODetector 사용 장치: {self.device}")
 
-        # 가중치 파일 존재 확인 (torch.hub 자동 다운로드 기능을 사용할 경우 생략 가능)
+        # 가중치 파일 존재 확인
         if not os.path.exists(weights_path):
              print(f"🚨 경고: YOLO 가중치 파일이 로컬에 없습니다: {weights_path}")
              print("torch.hub에서 표준 모델 이름으로 다운로드 시도합니다.")
              # 로컬에 없으면 파일 이름만 사용하여 torch.hub 자동 다운로드 시도
              weights_path = os.path.basename(weights_path)
-             if not weights_path.endswith('.pt'): # .pt 확장자가 없으면 표준 모델 이름으로 간주
-                  # 예를 들어 'yolov5s' 같은 이름
-                 pass # torch.hub가 알아서 다운로드할 것이라고 가정
-             else: # .pt 확장자가 있는데 로컬에 없으면 문제가 있을 수 있음
+             if not weights_path.endswith('.pt'): 
+                  
+                 pass 
+             else: 
                   print(f"🚨 오류: YOLO 가중치 파일({weights_path})이 로컬에 없으며 표준 모델 이름이 아닐 수 있습니다.")
-                  # 오류 발생 또는 모델 로딩 실패로 이어질 수 있습니다.
+                  
 
         try:
             # torch.hub를 사용하여 모델 로딩
