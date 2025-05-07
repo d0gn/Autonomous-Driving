@@ -1,186 +1,234 @@
-# --- 필요한 라이브러리 임포트 ---
-# 표준 라이브러리
 import os
 import sys
 import time
-# import argparse # 서버 실행 시 필수는 아니지만, 필요시 사용
+# import argparse
 from pathlib import Path
-#aaa
-# 서드파티 라이브러리
-from flask import Flask, request, jsonify
-from flask_socketio import SocketIO, emit
-import cv2
-import numpy as np
-from PIL import Image 
+import base64 # 이미지 데이터를 Base64로 인코딩/디코딩하기 위해 필요
+
+import socketio # python-socketio 라이브러리 임포트
+import eventlet # 비동기 웹 서버를 위해 eventlet 임포트
+import eventlet.wsgi # WSGI 서버를 위해 eventlet.wsgi 임포트
+
+import cv2 # 이미지 처리 및 디코딩에 필요
+import numpy as np # 이미지 데이터를 numpy 배열로 다루기 위해 필요
+from PIL import Image # 디헤이징 모듈에서 필요할 수 있음
 # import glob
-# import base64 
+
 
 # PyTorch 및 관련 라이브러리
 import torch
 import torch.nn as nn
 import torchvision
 import torch.backends.cudnn as cudnn
-# import torch.optim # 추론 서버이므로 최적화는 필요 없음
-from torchvision import transforms
-script_dir = Path(__file__).parent # 현재 스크립트의 디렉토리 경로
-model_dir = script_dir / 'api' # 'model' 디렉토리의 경로
-sys.path.append(str(model_dir)) # sys.path에 'model' 디렉토리 경로 추가
-import net 
-import yolodetect as yd
+from torchvision import transforms # 디헤이징 모듈에서 필요할 수 있음
+# import torch.optim
+
+script_dir = Path(__file__).parent
+# net.py, yolodetect.py, dehazer_module.py 파일이 위치한 실제 경로에 맞게 수정이 필요합니다.
+model_dir = script_dir / 'api' # 예시: 현재 스크립트와 같은 레벨의 'api' 폴더
+if not model_dir.exists():
+    print(f"🚨 경고: 모델/모듈 파일이 있을 것으로 예상되는 디렉토리가 존재하지 않습니다: {model_dir}")
+    print("sys.path에 추가하지 않습니다. import 오류 발생 시 경로를 확인해주세요.")
+else:
+    sys.path.append(str(model_dir))
+    print(f"✅ '{model_dir}' 경로를 sys.path에 추가했습니다.")
+
+# 필요한 모듈 임포트
+try:
+    import net
+    print("✅ net 모듈 임포트 성공.")
+except ImportError:
+    print("❌ net 모듈 임포트 실패. net.py 파일이 'api' 폴더에 있는지, 또는 sys.path 설정이 올바른지 확인해주세요.")
+    net = None
+
+try:
+    import yolodetect as yd # <--- yolodetect.py를 임포트하여 yd로 사용
+    print("✅ yolodetect 모듈 임포트 성공.")
+except ImportError:
+    print("❌ yolodetect 모듈 임포트 실패. yolodetect.py 파일이 'api' 폴더에 있는지, 또는 sys.path 설정이 올바른지 확인해주세요.")
+    yd = None
+
+try:
+    import dehazer
+    print("✅ dehazer_module 모듈 임포트 성공.")
+except ImportError:
+    print("❌ dehazer_module 모듈 임포트 실패. dehazer_module.py 파일이 'api' 폴더에 있는지, 또는 sys.path 설정이 올바른지 확인해주세요.")
+    dehazer_module = None
+
+
+# --- 글로벌 변수 및 모델 로딩 설정 ---
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"💡 모델 추론 장치: {DEVICE}")
 
 global_dehaze_net = None
 global_yolo_detector = None
 
+# --- 모델 로딩 함수 ---
 def load_models():
     """서버 시작 시 Dehazing 및 YOLO 모델을 로딩합니다."""
     global global_dehaze_net, global_yolo_detector, DEVICE
 
     print("⏳ 모델 로딩 시작...")
 
+    # Dehazing 모델 로딩
     print("⏳ Dehazing 모델 로딩 중...")
-    try:
-        global_dehaze_net = net.dehaze_net()
-        checkpoint_path = './ai_server/checkpoints/dehazer.pth'
-        if not os.path.exists(checkpoint_path):
-             print(f"🚨 경고: Dehazing 체크포인트 파일이 없습니다: {checkpoint_path}")
-             print("Dehazing 모델 로딩을 건너뜁니다. Dehazing 없이 YOLO만 실행됩니다.")
-             global_dehaze_net = None 
-        else:
-            
-            global_dehaze_net.load_state_dict(torch.load(checkpoint_path, map_location=DEVICE))
-            global_dehaze_net.to(DEVICE)
-            global_dehaze_net.eval() 
-            print("✅ Dehazing 모델 로딩 완료.")
-    except Exception as e:
-         print(f"❌ Dehazing 모델 로딩 실패: {e}")
-         global_dehaze_net = None 
+    if net is None or dehazer is None: 
+        print("🚨 net 또는 dehazer_module 임포트 실패로 Dehazing 모델 로딩을 건너뜁니다.")
+        global_dehaze_net = None
+    else:
+        try:
+            # Dehazing 체크포인트 파일 경로 조합
+            checkpoint_path_relative = './checkpoints/dehazer.pth' # <-- 이 경로가 올바른지 확인해주세요.
+            checkpoint_path = script_dir / checkpoint_path_relative
 
-    
+            print(f"💡 Dehazing 체크포인트 파일 경로 확인: {checkpoint_path}")
+
+            if not checkpoint_path.exists():
+                 print(f"🚨 경고: Dehazing 체크포인트 파일이 없습니다: {checkpoint_path}")
+                 print("Dehazing 모델 로딩을 건너뜁니다. Dehazing 없이 YOLO만 실행됩니다.")
+                 global_dehaze_net = None
+            else:
+                global_dehaze_net = net.dehaze_net()
+                global_dehaze_net.load_state_dict(torch.load(str(checkpoint_path), map_location=DEVICE))
+                global_dehaze_net.to(DEVICE)
+                global_dehaze_net.eval()
+                print("✅ Dehazing 모델 로딩 완료.")
+        except Exception as e:
+             print(f"❌ Dehazing 모델 로딩 실패: {e}")
+             global_dehaze_net = None
+
+
+    # YOLO 모델 로딩
     print("⏳ YOLO 모델 로딩 중...")
-    try:
-        
-        global_yolo_detector = yd.YOLODetector(weights_path='yolov5s.pt', device=str(DEVICE), img_size=640) 
+    if yd is None:
+         print("🚨 yolodetect 모듈을 임포트할 수 없어 YOLO 모델 로딩을 건너뜁니다.")
+         global_yolo_detector = None
+    else:
+        try:
+            # YOLODetector 클래스 인스턴스 생성 및 가중치 로딩
+            # weights_path='yolov5s.pt'는 torch.hub가 자동으로 다운로드할 수 있습니다.
+            # 만약 로컬 특정 경로에 가중치 파일이 있다면, 해당 경로를 지정해야 합니다.
+            # 예시: 현재 스크립트와 같은 레벨의 'ai_server/weights' 폴더 안에 yolov5s.pt가 있는 경우
+            # yolo_weights_path_relative = 'ai_server/weights/yolov5s.pt'
+            # yolo_weights_path = script_dir / yolo_weights_path_relative
+            # global_yolo_detector = yd.YOLODetector(weights_path=str(yolo_weights_path), device=str(DEVICE), img_size=640)
 
-        if global_yolo_detector.model is None:
-             print("🚨 YOLO 모델 로딩이 성공하지 않았습니다. 객체 검출 기능을 사용할 수 없습니다.")
-             global_yolo_detector = None # 모델 로딩 실패 시 None으로 설정
-        else:
-            print("✅ YOLO 모델 로딩 완료.")
+            # torch.hub 자동 다운로드를 사용하거나, YOLODetector 내부에서 경로 처리를 한다면 파일 이름만 전달
+            global_yolo_detector = yd.YOLODetector(weights_path='yolov5s.pt', device=str(DEVICE), img_size=640) # img_size는 모델에 맞게 조정 필요
 
-    except Exception as e:
-        print(f"❌ YOLO 모델 로딩 중 예외 발생: {e}")
-        global_yolo_detector = None # 로딩 실패 시 None으로 설정
+            if global_yolo_detector.model is None:
+                 print("🚨 YOLO 모델 로딩이 성공하지 않았습니다. 객체 검출 기능을 사용할 수 없습니다.")
+                 global_yolo_detector = None
+            else:
+                print("✅ YOLO 모델 로딩 완료.")
+
+        except Exception as e:
+            print(f"❌ YOLO 모델 로딩 중 예외 발생: {e}")
+            global_yolo_detector = None
 
     print("✅ 모델 로딩 종료.")
 
-app = Flask(__name__)
 
-app.config['SECRET_KEY'] = 'your_safe_and_complex_secret_key_here'
-# cors_allowed_origins="*": 모든 도메인의 클라이언트 접속 허용 (개발/테스트 목적)
-# 실제 운영 환경에서는 특정 클라이언트 IP 또는 도메인으로 제한하는 것이 보안상 좋습니다.
-socketio = SocketIO(app, cors_allowed_origins="*")
+# --- python-socketio 서버 인스턴스 생성 ---
+sio = socketio.Server(cors_allowed_origins="*", ping_interval=5, ping_timeout=10, max_http_buffer_size=100000000) # 이미지 전송을 위해 버퍼 크기 증가
+
+# WSGI 애플리케이션 생성 (SocketIO 서버를 HTTP 서버와 연결)
+app = socketio.WSGIApp(sio)
 
 
+# --- 이미지 처리 파이프라인 및 명령 결정 함수 ---
 def process_image_and_determine_command(image_np_bgr):
+    """
+    OpenCV 이미지 (BGR, numpy 배열)를 입력받아,
+    디헤이징 후 YOLO로 객체를 검출하고, 결과를 바탕으로 명령을 결정하는 함수
+
+    Args:
+        image_np_bgr (numpy.ndarray): OpenCV로 읽은 이미지 데이터 (BGR 형식, uint8)
+
+    Returns:
+        str or None: 라즈베리파이로 보낼 명령 문자열 ('forward', 'backward', 'stop' 등),
+                     명령을 보내지 않을 경우 None 반환
+    """
     print("\n--- 이미지 처리 파이프라인 시작 ---")
-    command = None # 기본 명령은 None (명령 없음)
+    command = None
 
     if image_np_bgr is None or image_np_bgr.size == 0:
          print("🚨 process_image: 유효하지 않은 입력 이미지입니다.")
          print("--- 이미지 처리 파이프라인 종료 (오류) ---")
          return None
 
-    processed_image_np_bgr = image_np_bgr # 디헤이징 실패 시 원본 이미지 사용
-
-    if global_dehaze_net is not None:
-        print("✨ 이미지 디헤이징 처리 중...")
-        try:
-            
-            image_np_rgb = cv2.cvtColor(image_np_bgr, cv2.COLOR_BGR2RGB)
-            image_tensor = torch.from_numpy(image_np_rgb.copy()).permute(2, 0, 1).float().unsqueeze(0) / 255.0
-            image_tensor = image_tensor.to(DEVICE)
-
-            with torch.no_grad(): 
-                
-                dehazed_tensor = global_dehaze_net(image_tensor)
-
-            dehazed_np_rgb = dehazed_tensor.squeeze(0).permute(1, 2, 0).cpu().numpy()
-            
-            dehazed_np_rgb = (dehazed_np_rgb * 255.0).astype(np.uint8)
-            
-            dehazed_np_bgr = cv2.cvtColor(dehazed_np_rgb, cv2.COLOR_RGB2BGR)
-
-            processed_image_np_bgr = dehazed_np_bgr 
-
-            print("✅ 디헤이징 완료.")
-            
-            cv2.imwrite("dehazed_output.jpg", processed_image_np_bgr)
-            print("디헤이징된 이미지 임시 저장됨: dehazed_output.jpg")
-
-        except Exception as e:
-            print(f"❌ 디헤이징 처리 중 오류 발생: {e}")
-            
-            processed_image_np_bgr = image_np_bgr
-            print("디헤이징 실패, 원본 이미지로 다음 단계 진행.")
+    # --- 단계 1&2: 이미지 디헤이징 (모듈 함수 호출) ---
+    if dehazer_module is not None and global_dehaze_net is not None:
+         # dehazer_module의 apply_dehazing 함수를 호출하여 디헤이징 수행
+         processed_image_np_bgr = dehazer_module.apply_dehazing(image_np_bgr, global_dehaze_net, DEVICE)
+         # apply_dehazing 함수 내에서 성공/실패 메시지 출력 및 오류 처리 수행
     else:
-         print("✨ 디헤이징 모델이 로딩되지 않았습니다. 디헤이징 건너뜁니다.")
-         processed_image_np_bgr = image_np_bgr
+         print("✨ 디헤이징 모듈 또는 모델이 로딩되지 않았습니다. 디헤이징 건너뜁니다.")
+         processed_image_np_bgr = image_np_bgr # 디헤이징 건너뛰고 원본 이미지 사용
+
 
     # --- 단계 3&4: YOLO 객체 검출 및 결과 분석 ---
-    detections = [] 
+    detections = []
+    annotated_img = None
     if global_yolo_detector is not None and processed_image_np_bgr is not None:
         print("🔍 YOLO 객체 검출 처리 중...")
         try:
-            
+            # YOLO Detector 인스턴스의 메소드 호출 (yolodetect 모듈에서 임포트)
             results, annotated_img = global_yolo_detector.detect_array(processed_image_np_bgr)
 
             if results is not None:
+                 # YOLO Detector 인스턴스의 메소드 호출 (yolodetect 모듈에서 임포트)
                  detections = global_yolo_detector.extract_detections(results)
                  print(f"✅ YOLO 객체 검출 완료. 총 {len(detections)}개 객체 검출됨.")
 
                  # 디버깅을 위해 검출 결과가 표시된 이미지를 파일로 저장할 수 있습니다.
-                 # if annotated_img is not None:
-                 cv2.imwrite("yolo_output.jpg", annotated_img)
-                 print("YOLO 결과 이미지 임시 저장됨: yolo_output.jpg")
+                 if annotated_img is not None:
+                     timestamp = int(time.time())
+                     output_filename = f"yolo_output_{timestamp}.jpg"
+                     cv2.imwrite(output_filename, annotated_img)
+                     print(f"YOLO 결과 이미지 임시 저장됨: {output_filename}")
 
             else:
                 print("🚨 YOLO 객체 검출 결과가 없습니다.")
 
-
         except Exception as e:
             print(f"❌ YOLO 객체 검출 중 오류 발생: {e}")
-            detections = [] # 오류 발생 시 검출 결과 초기화
+            detections = []
     else:
          print("🔍 YOLO 모델이 로딩되지 않았거나 유효한 이미지가 없어 객체 검출 건너뜁니다.")
 
 
-
-    
-
+    # --- 단계 5: 검출 결과를 바탕으로 명령 결정 ---
+    # TODO: 여기에 실제 명령 결정 로직을 구현해주세요.
+    # 'detections' 리스트를 분석하여 원하는 조건에 따라 명령(예: 'forward', 'backward', 'stop' 등)을
+    # 결정하고 'command' 변수에 할당합니다.
     print("🧠 검출 결과를 바탕으로 라즈베리파이 명령 결정 중...")
 
+    # --- 예시 명령 결정 로직 ---
+    # 실제 상황과 프로젝트 목적에 맞게 이 부분을 완전히 수정해주세요.
+    person_detected = False
+    car_detected = False
+
     if detections:
-        print(f"- 검출된 객체 목록: {[det['class_name'] for det in detections]}")
-        # 예시: 'person' 객체가 하나라도 검출되면 'stop' 명령 전송
+        print(f"- 검출된 객체 목록 ({len(detections)}개): {[det['class_name'] for det in detections]}")
         for det in detections:
-            if det['class_name'] == 'person' and det['confidence'] > 0.5: # 신뢰도 50% 이상인 'person'
-                command = "stop"
-                print(f"✅ 조건 만족: '{det['class_name']}' 객체 검출 (신뢰도: {det['confidence']:.2f}). 명령: '{command}'")
-                break # 'person' 찾으면 더 이상 검사 불필요 (또는 다른 객체도 고려)
+            if det['confidence'] > 0.5:
+                if det['class_name'] == 'person':
+                    person_detected = True
+                    print(f"   > 'person' 객체 검출됨 (신뢰도: {det['confidence']:.2f})")
+                    command = "stop"
+                    print(f"   -> 명령 결정: '{command}' (사람 발견)")
+                    break
+                elif det['class_name'] == 'car':
+                     car_detected = True
+                     print(f"   > 'car' 객체 검출됨 (신뢰도: {det['confidence']:.2f})")
 
-        # 예시: 'car' 객체가 검출되었지만 'person'이 검출되지 않았으면 'forward' 명령 전송
-        if command is None: # 아직 명령이 결정되지 않았다면
-            car_found = any(det['class_name'] == 'car' and det['confidence'] > 0.5 for det in detections)
-            if car_found:
-                command = "forward"
-                print(f"✅ 조건 만족: 'car' 객체 검출. 명령: '{command}'")
+    if command is None and car_detected:
+         command = "forward"
+         print(f"   -> 명령 결정: '{command}' (사람 없음, 차 발견)")
 
-
-    # 모든 검사를 마쳤음에도 명령이 결정되지 않았다면 None 유지
     if command is None:
-        print("✅ 조건 불만족 또는 객체 미검출. 보낼 명령이 없습니다.")
+        print("   -> 검출 결과에 따라 보낼 특정 명령이 없습니다.")
 
 
     print(f"➡️ 최종 결정 명령: {command}")
@@ -189,102 +237,96 @@ def process_image_and_determine_command(image_np_bgr):
     return command
 
 
-# ------------------------------------------------------
-
-@socketio.on('connect')
-def handle_connect():
+@sio.on('connect')
+def handle_connect(sid, environ):
     """클라이언트 연결 시 호출"""
-    print('✅ 클라이언트가 연결되었습니다.')
+    print(f'✅ 클라이언트가 연결되었습니다. (SID: {sid})')
 
 
-@socketio.on('disconnect')
-def handle_disconnect():
+@sio.on('disconnect')
+def handle_disconnect(sid):
     """클라이언트 연결 해제 시 호출"""
-    print('❌ 클라이언트 연결이 끊어졌습니다.')
+    print(f'❌ 클라이언트 연결이 끊어졌습니다. (SID: {sid})')
 
 
-@socketio.on('ack')
-def handle_ack(data):
+@sio.on('ack')
+def handle_ack(sid, data):
     """클라이언트로부터 ACK 메시지 수신 시 호출"""
-    print(f'👍 클라이언트로부터 ACK 수신: {data}')
+    print(f'👍 클라이언트 (SID: {sid})로부터 ACK 수신: {data}')
 
-# HTTP POST 요청을 처리하는 라우트
-@app.route('/upload_frame1', methods=['POST'])
-def upload_frame():
-    """라즈베리파이로부터 이미지 프레임을 수신하고 처리"""
-    print("\n--- 이미지 수신 라우트 시작 ---")
-    print("📥 이미지 프레임 수신 요청 받음")
 
-   
-    if 'frame' not in request.files:
-        print("🚨 오류: 'frame' 파일 파트가 요청에 없습니다.")
-        print("--- 이미지 수신 라우트 종료 (오류) ---")
-        return jsonify({'error': 'No frame file part'}), 400
+@sio.on('image_frame')
+def handle_image_frame(sid, data):
+    """
+    라즈베리파이 클라이언트로부터 SocketIO를 통해 이미지 프레임 데이터를 수신하고 처리합니다.
+    이미지 데이터는 Base64 문자열 형태로 전달될 것으로 예상합니다.
+    """
+    print(f"\n--- SocketIO 이미지 수신 핸들러 시작 (SID: {sid}) ---")
+    print("📥 SocketIO 'image_frame' 이벤트로 이미지 데이터 수신")
 
-    file = request.files['frame']
+    if 'image' not in data or not isinstance(data['image'], str):
+        print("🚨 오류: 수신된 데이터에 'image' 필드가 없거나 문자열이 아닙니다.")
+        sio.emit('error', {'message': 'Invalid image data format'}, room=sid)
+        print("--- SocketIO 이미지 수신 핸들러 종료 (오류) ---")
+        return
 
-    
-    if file.filename == '':
-        print("🚨 오류: 선택된 파일 이름이 없습니다.")
-        print("--- 이미지 수신 라우트 종료 (오류) ---")
-        return jsonify({'error': 'No selected file'}), 400
+    base64_image_string = data['image']
+    # print(f"💡 수신된 Base64 이미지 데이터 길이: {len(base64_image_string)}")
 
-    if file:
-        try:
-            # 받은 파일 데이터를 읽고 numpy 배열로 변환 (uint8 타입)
-            filestr = file.read()
-            npimg = np.frombuffer(filestr, np.uint8)
 
-            # numpy 배열을 OpenCV 이미지 형식 (BGR)으로 디코딩
-            # IMREAD_COLOR는 이미지를 3채널 컬러로 읽습니다.
-            image_np_bgr = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
+    try:
+        image_bytes = base64.b64decode(base64_image_string)
+        npimg = np.frombuffer(image_bytes, np.uint8)
+        image_np_bgr = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
 
-            if image_np_bgr is None:
-                 print("🚨 오류: 이미지 디코딩 실패")
-                 print("--- 이미지 수신 라우트 종료 (오류) ---")
-                 return jsonify({'error': 'Failed to decode image'}), 400
+        if image_np_bgr is None:
+             print("🚨 오류: 이미지 디코딩 실패 (cv2.imdecode)")
+             sio.emit('error', {'message': 'Failed to decode image'}, room=sid)
+             print("--- SocketIO 이미지 수신 핸들러 종료 (오류) ---")
+             return
 
-            print("✅ 이미지 수신 및 디코딩 완료.")
+        print("✅ 이미지 수신 및 디코딩 완료.")
 
-            # --- 수정: 이미지 처리 파이프라인 함수 호출 ---
-            # 디코딩된 OpenCV BGR numpy 이미지를 처리 함수에 전달
-            command_to_send = process_image_and_determine_command(image_np_bgr)
-           
+        # --- 이미지 처리 파이프라인 함수 호출 ---
+        # 이미 디코딩된 이미지 (BGR numpy 배열)를 전달
+        command_to_send = process_image_and_determine_command(image_np_bgr)
+        # --------------------------
 
-            # 이미지 처리 결과 (command_to_send 변수)에 따라 명령 전송
-            if command_to_send:
-                print(f"📤 클라이언트에 '{command_to_send}' 명령 전송 시도")
-                # 'command' 이벤트와 함께 명령 데이터를 SocketIO로 연결된 모든 클라이언트에게 전송
-                # 특정 클라이언트 (예: 이미지를 보낸 클라이언트)에게만 보내려면 request.sid 등을 활용
-                socketio.emit('command', {'command': command_to_send})
-                print(f"➡️ '{command_to_send}' 명령 전송 완료")
-            else:
-                print("➡️ 보낼 명령이 결정되지 않았습니다.")
+        if command_to_send:
+            print(f"📤 클라이언트 (SID: {sid})에 '{command_to_send}' 명령 전송 시도")
+            sio.emit('command', {'command': command_to_send}, room=sid)
+            print(f"➡️ '{command_to_send}' 명령 전송 완료")
+        else:
+            print("➡️ 보낼 명령이 결정되지 않았습니다.")
 
-            # 클라이언트에 HTTP 응답 반환
-            print("--- 이미지 수신 라우트 종료 (성공) ---")
-            return jsonify({'status': 'success', 'command_sent': command_to_send}), 200
+        # 이미지 처리가 완료되었음을 클라이언트에게 알릴 수 있습니다. (선택 사항)
+        # sio.emit('processing_done', {'status': 'success', 'command_sent': command_to_send}, room=sid)
 
-        except Exception as e:
-            # 이미지 처리 또는 전송 중 예상치 못한 오류 발생 시 처리
-            print(f"🚨 심각한 오류 발생: 이미지 처리 또는 전송 중 예외 발생 - {e}")
-            print("--- 이미지 수신 라우트 종료 (오류) ---")
-            return jsonify({'error': str(e)}), 500
+        print("--- SocketIO 이미지 수신 핸들러 종료 (성공) ---")
 
-    # 파일이 존재하지 않는 예상치 못한 경우 (앞에서 이미 처리되지만, 혹시 모를 상황 대비)
-    print("🚨 알 수 없는 오류 발생: 파일 처리 중 문제.")
-    print("--- 이미지 수신 라우트 종료 (오류) ---")
-    return jsonify({'error': 'Unknown error'}), 500
+    except Exception as e:
+        print(f"🚨 심각한 오류 발생: 이미지 처리 중 예외 발생 - {e}")
+        sio.emit('error', {'message': f'Internal server error: {e}'}, room=sid)
+        print("--- SocketIO 이미지 수신 핸들러 종료 (오류) ---")
+        return
+
 
 # 서버 실행 진입점
 if __name__ == '__main__':
+    # --- 서버 시작 전에 모델들을 미리 로딩 ---
     load_models()
 
-    # 모델 로딩 실패 여부 확인 (선택 사항, 실패 시 서버 시작을 중단할 수도 있음)
+    # 모델 로딩 실패 여부 확인
     if global_dehaze_net is None and global_yolo_detector is None:
          print("❌ 경고: Dehazing 모델과 YOLO 모델 모두 로딩에 실패했습니다. 이미지 처리 기능이 제대로 동작하지 않을 수 있습니다.")
-         
+    elif global_dehaze_net is None:
+         print("❌ 경고: Dehazing 모델 로딩에 실패했습니다. Dehazing 없이 YOLO만 실행됩니다.")
+    elif global_yolo_detector is None:
+         print("❌ 경고: YOLO 모델 로딩에 실패했습니다. 객체 검출 기능을 사용할 수 없습니다.")
 
-    print("🚀 Flask SocketIO 서버를 시작합니다...")
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    # --- eventlet WSGI 서버 실행 ---
+    host = '0.0.0.0'
+    port = 5000
 
+    print(f"🚀 python-socketio 서버를 시작합니다 (SocketIO 이미지 수신 모드) - {host}:{port} 에서 대기...")
+    eventlet.wsgi.server(eventlet.listen((host, port)), app)
