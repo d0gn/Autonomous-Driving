@@ -1,67 +1,106 @@
+import os
 import cv2
 import numpy as np
+import matplotlib.image as mpimg
+import re
 
 class LaneDetector:
-    def __init__(self):
-        self.low_threshold = 50
-        self.high_threshold = 150
-        self.rho = 1
-        self.theta = np.pi / 180
-        self.threshold = 50
-        self.min_line_length = 100
-        self.max_line_gap = 50
+    def __init__(self, input_path='test_images/', output_path='test_images_output/'):
+        self.input_path = input_path
+        self.output_path = output_path
 
-    def region_of_interest(self, img):
-        height, width = img.shape[:2]
-        polygons = np.array([[(0, height), (width, height), (width, int(height*0.6)), (0, int(height*0.6))]])
+    def grayscale(self, img):
+        return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+
+    def gaussian_blur(self, img, kernel_size):
+        return cv2.GaussianBlur(img, (kernel_size, kernel_size), 0)
+
+    def canny(self, img, low_threshold, high_threshold):
+        return cv2.Canny(img, low_threshold, high_threshold)
+
+    def region_of_interest(self, img, vertices):
         mask = np.zeros_like(img)
-        cv2.fillPoly(mask, polygons, 255)
+        if len(img.shape) > 2:
+            ignore_mask_color = (255,) * img.shape[2]
+        else:
+            ignore_mask_color = 255
+        cv2.fillPoly(mask, vertices, ignore_mask_color)
         return cv2.bitwise_and(img, mask)
 
-    def average_slope_intercept(self, lines, img_shape):
-        left, right = [], []
-        if lines is None:
-            return None, None
+    def hough_lines(self, img, rho, theta, threshold, min_line_len, max_line_gap):
+        lines = cv2.HoughLinesP(img, rho, theta, threshold, np.array([]),
+                                minLineLength=min_line_len, maxLineGap=max_line_gap)
+        line_img = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.uint8)
+        self.draw_lines(line_img, lines)
+        return line_img
+
+    def draw_lines(self, img, lines, thickness=3):
+        left_lines = []
+        right_lines = []
+
         for line in lines:
-            x1, y1, x2, y2 = line[0]
-            if x2 - x1 == 0: continue
-            slope = (y2 - y1) / (x2 - x1)
+            for x1, y1, x2, y2 in line:
+                slope = (y2 - y1) / (x2 - x1 + 1e-6)
+                if -0.8 < slope < -0.2:
+                    left_lines.append(line)
+                elif 0.2 < slope < 0.8:
+                    right_lines.append(line)
+
+        if left_lines:
+            LL_avg = np.mean(left_lines, axis=0)[0]
+            x1, y1, x2, y2 = LL_avg
+            slope = (y2 - y1) / (x2 - x1 + 1e-6)
             intercept = y1 - slope * x1
-            if slope < -0.3: left.append((slope, intercept))
-            elif slope > 0.3: right.append((slope, intercept))
-        return (self.make_line_from_avg(left, img_shape) if left else None,
-                self.make_line_from_avg(right, img_shape) if right else None)
+            y1, y2 = 539, 320
+            x1 = int((y1 - intercept) / slope)
+            x2 = int((y2 - intercept) / slope)
+            cv2.line(img, (x1, y1), (x2, y2), [255, 255, 0], thickness)
 
-    def make_line_from_avg(self, lines, img_shape):
-        slope, intercept = np.mean(lines, axis=0)
-        y1, y2 = img_shape[0], int(img_shape[0] * 0.6)
-        x1 = int((y1 - intercept) / slope)
-        x2 = int((y2 - intercept) / slope)
-        return np.array([x1, y1, x2, y2])
+        if right_lines:
+            RL_avg = np.mean(right_lines, axis=0)[0]
+            x1, y1, x2, y2 = RL_avg
+            slope = (y2 - y1) / (x2 - x1 + 1e-6)
+            intercept = y1 - slope * x1
+            y1, y2 = 539, 320
+            x1 = int((y1 - intercept) / slope)
+            x2 = int((y2 - intercept) / slope)
+            cv2.line(img, (x1, y1), (x2, y2), [0, 0, 255], thickness)
 
-    def draw_curve(self, img, line):
-        x1, y1, x2, y2 = line
-        points = np.array([
-            [x1, y1],
-            [int((2*x1 + x2)/3), int((2*y1 + y2)/3)],
-            [int((x1 + 2*x2)/3), int((y1 + 2*y2)/3)],
-            [x2, y2]
-        ])
-        poly = np.polyfit(points[:, 1], points[:, 0], 2)
-        plot_y = np.linspace(y2, y1, 50, dtype=int)
-        plot_x = poly[0]*plot_y**2 + poly[1]*plot_y + poly[2]
-        pts = np.array([np.transpose(np.vstack([plot_x, plot_y]))], dtype=np.int32)
-        cv2.polylines(img, pts, isClosed=False, color=(0, 255, 0), thickness=5)
+    def weighted_img(self, img, initial_img, α=0.5, β=1.0, λ=0.):
+        return cv2.addWeighted(img, α, initial_img, β, λ)
 
-    def detect_lane(self, frame):
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        blur = cv2.GaussianBlur(gray, (5, 5), 0)
-        edges = cv2.Canny(blur, self.low_threshold, self.high_threshold)
-        cropped = self.region_of_interest(edges)
-        lines = cv2.HoughLinesP(cropped, self.rho, self.theta, self.threshold,
-                                np.array([]), self.min_line_length, self.max_line_gap)
-        left, right = self.average_slope_intercept(lines, frame.shape)
-        line_img = np.zeros_like(frame)
-        if left is not None: self.draw_curve(line_img, left)
-        if right is not None: self.draw_curve(line_img, right)
-        return cv2.addWeighted(frame, 0.8, line_img, 1, 1)
+    def lane_finding_pipeline(self, img):
+        gray = self.grayscale(img)
+        blur = self.gaussian_blur(gray, kernel_size=5)
+        edges = self.canny(blur, 70, 140)
+        cv2.imshow("Canny Edges", edges)  # 디버깅용: Canny 결과 확인
+        cv2.waitKey(0)
+        vertices = np.array([[(0, 539), (425, 340), (510, 320), (959, 539)]], dtype=np.int32)
+        masked = self.region_of_interest(edges, vertices)
+        lines = self.hough_lines(masked, 1, np.pi / 180, 12, 10, 2)
+
+        if lines is None:
+            print("❌ HoughLinesP가 선을 찾지 못했습니다.")
+            return img  # 기본 이미지 반환
+
+        output = self.weighted_img(lines, img)
+        return output
+
+    def detect_lane(self, img):
+        return self.lane_finding_pipeline(img)
+
+    def read_and_save_images(self):
+        images = os.listdir(self.input_path)
+        if not os.path.exists(self.output_path):
+            os.makedirs(self.output_path)
+
+        for filename in images:
+            # 파일 확장자를 검사하고 PNG도 처리 가능하게 수정
+            image_path = os.path.join(self.input_path, filename)
+            if filename.lower().endswith(('png', 'jpg', 'jpeg')):
+                image = mpimg.imread(image_path)
+                result = self.lane_finding_pipeline(image)
+
+                # 파일 확장자에 맞게 저장
+                save_name = re.sub(r'\.(jpg|jpeg|png)$', '', filename) + '_output.png'
+                mpimg.imsave(os.path.join(self.output_path, save_name), result)
