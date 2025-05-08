@@ -6,6 +6,15 @@ import cv2
 import numpy as np
 from PIL import Image
 import os
+import sys
+from pathlib import Path
+script_dir = Path(Path(__file__).parent).parent
+model_dir = script_dir / 'models' 
+if not model_dir.exists():
+    print(f"디렉토리 존재 x: {model_dir}")
+else:
+    sys.path.append(str(model_dir))
+    print(f"'{model_dir}' 경로추가")
 import net
 #이미지 디헤이징
 def dehaze_image(image):
@@ -46,4 +55,4 @@ if __name__ == '__main__':
 
     for video in video_list:
         process_video(video)
-        print(video, "done!")
+        print(video, "완료")

@@ -5,9 +5,17 @@ import torch.backends.cudnn as cudnn
 import torch.optim
 import os
 import sys
+from pathlib import Path
 import argparse
 import time
 import dataloader
+script_dir = Path(Path(__file__).parent).parent
+model_dir = script_dir / 'models' 
+if not model_dir.exists():
+    print(f"디렉토리 존재 x: {model_dir}")
+else:
+    sys.path.append(str(model_dir))
+    print(f"'{model_dir}' 경로추가")
 import net
 import numpy as np
 from torchvision import transforms
@@ -28,7 +36,7 @@ def dehaze_image(image_path):
 	dehaze_net.load_state_dict(torch.load('./checkpoints/dehazer.pth'))
 
 	clean_image = dehaze_net(data_hazy)
-	torchvision.utils.save_image(torch.cat((data_hazy, clean_image),0), "results/" + image_path.split("/")[-1])
+	torchvision.utils.save_image(torch.cat((data_hazy, clean_image),0), "./results/" + image_path.split("/")[-1])
 	
 
 if __name__ == '__main__':
@@ -38,4 +46,4 @@ if __name__ == '__main__':
 	for image in test_list:
 
 		dehaze_image(image)
-		print(image, "done!")
+		print(image, "완료")

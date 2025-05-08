@@ -28,8 +28,14 @@ if not model_dir.exists():
     print(f"디렉토리 존재 x: {model_dir}")
 else:
     sys.path.append(str(model_dir))
-    print(f"✅ '{model_dir}' 경로추가")
-
+    print(f"'{model_dir}' 경로추가")
+script_dir = Path(__file__).parent
+model_dir = script_dir / 'models' 
+if not model_dir.exists():
+    print(f"디렉토리 존재 x: {model_dir}")
+else:
+    sys.path.append(str(model_dir))
+    print(f"'{model_dir}' 경로추가")
 # 디헤이징 model 임포트
 try:
     import dehazer
@@ -289,7 +295,7 @@ if __name__ == '__main__':
     if global_dehaze_net is None and global_yolo_detector is None:
          print("YOLO 디헤이징 모두 로딩 실패 ")
     elif global_dehaze_net is None:
-         print("디헤이징 실패 YOLO만 시행행")
+         print("디헤이징 실패 YOLO만 시행")
     elif global_yolo_detector is None:
          print("YOLO 실패 객체검출 불가 ")
 

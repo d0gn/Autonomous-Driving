@@ -74,10 +74,10 @@ class dehazing_loader(data.Dataset):
 
 		if mode == 'train':
 			self.data_list = self.train_list
-			print("Total training examples:", len(self.train_list))
+			print("훈련 샘플 ", len(self.train_list))
 		else:
 			self.data_list = self.val_list
-			print("Total validation examples:", len(self.val_list))
+			print("검증 샘플 ", len(self.val_list))
 
 		
 
