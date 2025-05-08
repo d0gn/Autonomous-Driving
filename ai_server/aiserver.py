@@ -3,15 +3,15 @@ import sys
 import time
 # import argparse
 from pathlib import Path
-import base64 # 이미지 데이터를 Base64로 인코딩/디코딩하기 위해 필요
+import base64 
 
-import socketio # python-socketio 라이브러리 임포트
-import eventlet # 비동기 웹 서버를 위해 eventlet 임포트
-import eventlet.wsgi # WSGI 서버를 위해 eventlet.wsgi 임포트
+import socketio 
+import eventlet 
+import eventlet.wsgi 
 
-import cv2 # 이미지 처리 및 디코딩에 필요
-import numpy as np # 이미지 데이터를 numpy 배열로 다루기 위해 필요
-from PIL import Image # 디헤이징 모듈에서 필요할 수 있음
+import cv2 
+import numpy as np 
+from PIL import Image 
 # import glob
 
 
@@ -20,29 +20,25 @@ import torch
 import torch.nn as nn
 import torchvision
 import torch.backends.cudnn as cudnn
-from torchvision import transforms # 디헤이징 모듈에서 필요할 수 있음
+from torchvision import transforms 
 # import torch.optim
 
 script_dir = Path(__file__).parent
-# net.py, yolodetect.py, dehazer_module.py 파일이 위치한 실제 경로에 맞게 수정이 필요합니다.
-model_dir = script_dir / 'api' # 예시: 현재 스크립트와 같은 레벨의 'api' 폴더
+model_dir = script_dir / 'api' 
 if not model_dir.exists():
     print(f"🚨 경고: 모델/모듈 파일이 있을 것으로 예상되는 디렉토리가 존재하지 않습니다: {model_dir}")
     print("sys.path에 추가하지 않습니다. import 오류 발생 시 경로를 확인해주세요.")
 else:
     sys.path.append(str(model_dir))
     print(f"✅ '{model_dir}' 경로를 sys.path에 추가했습니다.")
-
-# 필요한 모듈 임포트
 try:
     import net
     print("✅ net 모듈 임포트 성공.")
 except ImportError:
     print("❌ net 모듈 임포트 실패. net.py 파일이 'api' 폴더에 있는지, 또는 sys.path 설정이 올바른지 확인해주세요.")
     net = None
-
 try:
-    import yolodetect as yd # <--- yolodetect.py를 임포트하여 yd로 사용
+    import yolodetect as yd 
     print("✅ yolodetect 모듈 임포트 성공.")
 except ImportError:
     print("❌ yolodetect 모듈 임포트 실패. yolodetect.py 파일이 'api' 폴더에 있는지, 또는 sys.path 설정이 올바른지 확인해주세요.")
@@ -70,15 +66,13 @@ def load_models():
 
     print("⏳ 모델 로딩 시작...")
 
-    # Dehazing 모델 로딩
     print("⏳ Dehazing 모델 로딩 중...")
     if net is None or dehazer is None: 
         print("🚨 net 또는 dehazer_module 임포트 실패로 Dehazing 모델 로딩을 건너뜁니다.")
         global_dehaze_net = None
     else:
         try:
-            # Dehazing 체크포인트 파일 경로 조합
-            checkpoint_path_relative = './checkpoints/dehazer.pth' # <-- 이 경로가 올바른지 확인해주세요.
+            checkpoint_path_relative = './checkpoints/dehazer.pth'
             checkpoint_path = script_dir / checkpoint_path_relative
 
             print(f"💡 Dehazing 체크포인트 파일 경로 확인: {checkpoint_path}")
@@ -97,8 +91,6 @@ def load_models():
              print(f"❌ Dehazing 모델 로딩 실패: {e}")
              global_dehaze_net = None
 
-
-    # YOLO 모델 로딩
     print("⏳ YOLO 모델 로딩 중...")
     if yd is None:
          print("🚨 yolodetect 모듈을 임포트할 수 없어 YOLO 모델 로딩을 건너뜁니다.")
@@ -132,23 +124,12 @@ def load_models():
 # --- python-socketio 서버 인스턴스 생성 ---
 sio = socketio.Server(cors_allowed_origins="*", ping_interval=5, ping_timeout=10, max_http_buffer_size=100000000) # 이미지 전송을 위해 버퍼 크기 증가
 
-# WSGI 애플리케이션 생성 (SocketIO 서버를 HTTP 서버와 연결)
+# WSGI 애플리케이션 생성
 app = socketio.WSGIApp(sio)
 
 
 # --- 이미지 처리 파이프라인 및 명령 결정 함수 ---
 def process_image_and_determine_command(image_np_bgr):
-    """
-    OpenCV 이미지 (BGR, numpy 배열)를 입력받아,
-    디헤이징 후 YOLO로 객체를 검출하고, 결과를 바탕으로 명령을 결정하는 함수
-
-    Args:
-        image_np_bgr (numpy.ndarray): OpenCV로 읽은 이미지 데이터 (BGR 형식, uint8)
-
-    Returns:
-        str or None: 라즈베리파이로 보낼 명령 문자열 ('forward', 'backward', 'stop' 등),
-                     명령을 보내지 않을 경우 None 반환
-    """
     print("\n--- 이미지 처리 파이프라인 시작 ---")
     command = None
 
@@ -159,12 +140,10 @@ def process_image_and_determine_command(image_np_bgr):
 
     # --- 단계 1&2: 이미지 디헤이징 (모듈 함수 호출) ---
     if dehazer_module is not None and global_dehaze_net is not None:
-         # dehazer_module의 apply_dehazing 함수를 호출하여 디헤이징 수행
          processed_image_np_bgr = dehazer_module.apply_dehazing(image_np_bgr, global_dehaze_net, DEVICE)
-         # apply_dehazing 함수 내에서 성공/실패 메시지 출력 및 오류 처리 수행
     else:
          print("✨ 디헤이징 모듈 또는 모델이 로딩되지 않았습니다. 디헤이징 건너뜁니다.")
-         processed_image_np_bgr = image_np_bgr # 디헤이징 건너뛰고 원본 이미지 사용
+         processed_image_np_bgr = image_np_bgr 
 
 
     # --- 단계 3&4: YOLO 객체 검출 및 결과 분석 ---
@@ -199,13 +178,12 @@ def process_image_and_determine_command(image_np_bgr):
 
 
     # --- 단계 5: 검출 결과를 바탕으로 명령 결정 ---
-    # TODO: 여기에 실제 명령 결정 로직을 구현해주세요.
     # 'detections' 리스트를 분석하여 원하는 조건에 따라 명령(예: 'forward', 'backward', 'stop' 등)을
-    # 결정하고 'command' 변수에 할당합니다.
+    # 결정하고 'command' 변수에 할당
     print("🧠 검출 결과를 바탕으로 라즈베리파이 명령 결정 중...")
 
     # --- 예시 명령 결정 로직 ---
-    # 실제 상황과 프로젝트 목적에 맞게 이 부분을 완전히 수정해주세요.
+
     person_detected = False
     car_detected = False
 
@@ -257,10 +235,6 @@ def handle_ack(sid, data):
 
 @sio.on('image_frame')
 def handle_image_frame(sid, data):
-    """
-    라즈베리파이 클라이언트로부터 SocketIO를 통해 이미지 프레임 데이터를 수신하고 처리합니다.
-    이미지 데이터는 Base64 문자열 형태로 전달될 것으로 예상합니다.
-    """
     print(f"\n--- SocketIO 이미지 수신 핸들러 시작 (SID: {sid}) ---")
     print("📥 SocketIO 'image_frame' 이벤트로 이미지 데이터 수신")
 

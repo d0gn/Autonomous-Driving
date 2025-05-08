@@ -2,27 +2,12 @@ import torch
 import torchvision
 import numpy as np
 import cv2
-from PIL import Image # 이미지 변환 시 필요할 수 있음
-from torchvision import transforms # 이미지 전처리 시 필요
-
-# net 모듈 임포트 (dehaze_net 아키텍처 정의가 필요함)
-# 이 파일(dehazer_module.py)이 net.py와 같은 디렉토리나 sys.path에 있는 곳에 있어야 합니다.
+from PIL import Image 
+from torchvision import transforms 
 import net
 
 
 def apply_dehazing(image_np_bgr, dehaze_model, device):
-    """
-    OpenCV 이미지 (BGR, numpy 배열)에 디헤이징 모델을 적용합니다.
-
-    Args:
-        image_np_bgr (numpy.ndarray): OpenCV로 읽은 이미지 데이터 (BGR 형식, uint8)
-        dehaze_model (torch.nn.Module): 미리 로딩된 Dehazing 모델 인스턴스
-        device (torch.device): 모델 추론에 사용할 장치 (cuda 또는 cpu)
-
-    Returns:
-        numpy.ndarray: 디헤이징 처리된 이미지 데이터 (BGR 형식, uint8),
-                       오류 발생 시 원본 이미지 반환
-    """
     if dehaze_model is None:
         print("🚨 Dehazing 모델이 로딩되지 않았습니다. 디헤이징을 적용하지 않습니다.")
         return image_np_bgr # 모델이 없으면 원본 이미지 반환
@@ -59,7 +44,6 @@ def apply_dehazing(image_np_bgr, dehaze_model, device):
 
         print("✅ apply_dehazing: 디헤이징 완료.")
 
-        # 디버깅을 위해 디헤이징된 이미지를 파일로 저장할 수 있습니다.
         # timestamp = int(time.time())
         # cv2.imwrite(f"dehazed_output_{timestamp}.jpg", processed_image_np_bgr)
         # print(f"apply_dehazing: 디헤이징된 이미지 임시 저장됨: dehazed_output_{timestamp}.jpg")
@@ -73,9 +57,7 @@ def apply_dehazing(image_np_bgr, dehaze_model, device):
 
     return processed_image_np_bgr
 
-# 이 파일 자체를 직접 실행할 경우 테스트 코드 등을 추가할 수 있습니다.
 # if __name__ == '__main__':
 #    print("dehazer_module.py 파일을 직접 실행했습니다. 보통은 다른 스크립트에서 임포트됩니다.")
-#    # 테스트 코드 예시: 이미지 로드, 디헤이징 함수 호출 등
 #    pass
 
