@@ -8,6 +8,16 @@ import sys
 import argparse
 import time
 import dataloader
+import os
+import sys
+from pathlib import Path
+script_dir = Path(Path(__file__).parent).parent
+model_dir = script_dir / 'models' 
+if not model_dir.exists():
+    print(f"디렉토리 존재 x: {model_dir}")
+else:
+    sys.path.append(str(model_dir))
+    print(f"'{model_dir}' 경로추가")
 import net
 import numpy as np
 from torchvision import transforms
@@ -55,12 +65,12 @@ def train(config):
 			optimizer.step()
 
 			if ((iteration+1) % config.display_iter) == 0:
-				print("Loss at iteration", iteration+1, ":", loss.item())
+				print("로스 ", iteration+1, ":", loss.item())
 			if ((iteration+1) % config.snapshot_iter) == 0:
 				
-				torch.save(dehaze_net.state_dict(), config.snapshots_folder + "Epoch" + str(epoch) + '.pth') 		
+				torch.save(dehaze_net.state_dict(), config.snapshots_folder + "epoch" + str(epoch) + '.pth') 		
 
-		# Validation Stage
+		# 검증
 		for iter_val, (img_orig, img_haze) in enumerate(val_loader):
 
 			img_orig = img_orig.cuda()
@@ -72,8 +82,7 @@ def train(config):
 
 		torch.save(dehaze_net.state_dict(), config.snapshots_folder + "dehazer.pth") 
 
-			
-
+		
 
 
 
