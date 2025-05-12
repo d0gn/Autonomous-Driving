@@ -42,13 +42,13 @@ try:
     print("dehazer 임포트 성공")
 except ImportError:
     print("dehzer 임포트 실패")
-    dehazer_module = None
+    dehazer = None
 try:
     import net
     print("net 임포트 성공")
 except ImportError:
     print("net 임포트 실패")
-    dehazer_module = None
+    dehazer = None
 
 # yolo 임포트
 try:
@@ -141,8 +141,8 @@ def process_image_and_determine_command(image_np_bgr):
          return None
 
     # --- 단계 1&2: 이미지 디헤이징 (모듈 함수 호출) ---
-    if dehazer_module is not None and global_dehaze_net is not None:
-         processed_image_np_bgr = dehazer_module.apply_dehazing(image_np_bgr, global_dehaze_net, DEVICE)
+    if dehazer is not None and global_dehaze_net is not None:
+         processed_image_np_bgr = dehazer.apply_dehazing(image_np_bgr, global_dehaze_net, DEVICE)
     else:
          print("디헤이징 모델 or 모듈 없음 ")
          processed_image_np_bgr = image_np_bgr 
@@ -240,14 +240,8 @@ def handle_image_frame(sid, data):
     print(f"\n--- SocketIO 이미지 수신 핸들러 시작 (SID: {sid}) ---")
     print("📥 SocketIO 'image_frame' 이벤트로 이미지 데이터 수신")
 
-    if 'image' not in data or not isinstance(data['image'], str):
-        print("🚨 오류: 수신된 데이터에 'image' 필드가 없거나 문자열이 아닙니다.")
-        sio.emit('error', {'message': 'Invalid image data format'}, room=sid)
-        print("--- SocketIO 이미지 수신 핸들러 종료 (오류) ---")
-        return
-
-    base64_image_string = data['image']
-    # print(f"💡 수신된 Base64 이미지 데이터 길이: {len(base64_image_string)}")
+    base64_image_string = data
+    print(f"💡 수신된 Base64 이미지 데이터 길이: {len(base64_image_string)}")
 
 
     try:
@@ -300,7 +294,7 @@ if __name__ == '__main__':
          print("YOLO 실패 객체검출 불가 ")
 
     # --- eventlet WSGI 서버 실행 ---
-    host = '0.0.0.0'
+    host = '192.168.137.164'
     port = 5000
 
     print(f"서버를 시작 - {host}:{port} 에서 대기...")

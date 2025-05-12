@@ -82,8 +82,7 @@ def train(config):
 
 		torch.save(dehaze_net.state_dict(), config.snapshots_folder + "dehazer.pth") 
 
-			
-
+		
 
 
 

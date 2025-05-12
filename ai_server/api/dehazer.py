@@ -7,6 +7,7 @@ from torchvision import transforms
 import os
 import sys
 from pathlib import Path
+
 script_dir = Path(Path(__file__).parent).parent
 model_dir = script_dir / 'models' 
 if not model_dir.exists():
@@ -14,6 +15,7 @@ if not model_dir.exists():
 else:
     sys.path.append(str(model_dir))
     print(f"'{model_dir}' 경로추가")
+
 import net
 import time
 
