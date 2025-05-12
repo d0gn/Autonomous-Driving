@@ -2,7 +2,7 @@
 import socketio
 import RPi.GPIO as GPIO
 import time
-
+# 파보회흰검갈
 # ───── GPIO 설정 ─────
 IN1 = 17
 IN2 = 27
