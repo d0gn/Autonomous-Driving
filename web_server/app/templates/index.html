@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>자율주행 웹 컨트롤</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <script src="{{ url_for('static', filename='script.js') }}" defer></script>
+</head>
+<body>
+  <header>
+    <h1>자율주행 자동차 제어 패널</h1>
+  </header>
+
+  <div class="container">
+    <div class="video-container">
+      <img id="video_original" width="640" height="480">
+      <img id="video_dehazed" width="640" height="480">
+    </div>
+
+    <button id="modeToggle">모드: 자동 (변경하려면 클릭)</button>
+    <p id="manualTip" style="display:none;">방향키로 제어 가능 (↑ ↓ ← →)</p>
+  </div>
+</body>
+</html>
