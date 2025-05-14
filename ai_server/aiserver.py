@@ -184,8 +184,6 @@ def process_image_and_determine_command(image_np_bgr):
     # 결정하고 'command' 변수에 할당
     print("명령 결정 ")
 
-    # --- 예시 명령 결정 로직 ---
-
     person_detected = False
     car_detected = False
 
@@ -212,7 +210,7 @@ def process_image_and_determine_command(image_np_bgr):
 
 
     print(f"결정 명령: {command}")
-    print("이미지 처리 종료료")
+    print("이미지 처리 종료")
 
     return command
 
@@ -238,10 +236,10 @@ def handle_ack(sid, data):
 @sio.on('image_frame')
 def handle_image_frame(sid, data):
     print(f"\n--- SocketIO 이미지 수신 핸들러 시작 (SID: {sid}) ---")
-    print("📥 SocketIO 'image_frame' 이벤트로 이미지 데이터 수신")
+    print("SocketIO 'image_frame' 이벤트로 이미지 데이터 수신")
 
     base64_image_string = data
-    print(f"💡 수신된 Base64 이미지 데이터 길이: {len(base64_image_string)}")
+    print(f"수신된 Base64 이미지 데이터 길이: {len(base64_image_string)}")
 
 
     try:
@@ -250,12 +248,12 @@ def handle_image_frame(sid, data):
         image_np_bgr = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
 
         if image_np_bgr is None:
-             print("🚨 오류: 이미지 디코딩 실패 (cv2.imdecode)")
+             print("오류: 이미지 디코딩 실패 (cv2.imdecode)")
              sio.emit('error', {'message': 'Failed to decode image'}, room=sid)
              print("--- SocketIO 이미지 수신 핸들러 종료 (오류) ---")
              return
 
-        print("✅ 이미지 수신 및 디코딩 완료.")
+        print("이미지 수신 및 디코딩 완료.")
 
         # --- 이미지 처리 파이프라인 함수 호출 ---
         # 이미 디코딩된 이미지 (BGR numpy 배열)를 전달
@@ -263,18 +261,18 @@ def handle_image_frame(sid, data):
         # --------------------------
 
         if command_to_send:
-            print(f"📤 클라이언트 (SID: {sid})에 '{command_to_send}' 명령 전송 시도")
+            print(f"클라이언트 (SID: {sid})에 '{command_to_send}' 명령 전송 시도")
             sio.emit('command', {'command': command_to_send}, room=sid)
-            print(f"➡️ '{command_to_send}' 명령 전송 완료")
+            print(f"'{command_to_send}' 명령 전송 완료")
         else:
-            print("➡️ 보낼 명령이 결정되지 않았습니다.")
+            print("보낼 명령이 결정되지 않았습니다.")
 
         # sio.emit('processing_done', {'status': 'success', 'command_sent': command_to_send}, room=sid)
 
         print("--- SocketIO 이미지 수신 핸들러 종료 (성공) ---")
 
     except Exception as e:
-        print(f"🚨 심각한 오류 발생: 이미지 처리 중 예외 발생 - {e}")
+        print(f"심각한 오류 발생: 이미지 처리 중 예외 발생 - {e}")
         sio.emit('error', {'message': f'Internal server error: {e}'}, room=sid)
         print("--- SocketIO 이미지 수신 핸들러 종료 (오류) ---")
         return
