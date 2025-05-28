@@ -75,7 +75,7 @@ def pipeline(img, s_thresh=(100, 255), sx_thresh=(15, 255)):
 
 # Bird-Eye-View 위에서 내려다본 시점으로 변환하는 함수
 def perspective_warp(img, 
-                     dst_size=(1280,720),
+                     dst_size=(640,480),
                      src=np.float32([(0.43,0.65),(0.58,0.65),(0.1,1),(1,1)]),
                      dst=np.float32([(0,0), (1, 0), (0,1), (1,1)])):
     img_size = np.float32([(img.shape[1],img.shape[0])])
@@ -87,7 +87,7 @@ def perspective_warp(img,
 
 # Bird-Eye-View된 이미지를 원본시점으로 복원
 def inv_perspective_warp(img, 
-                     dst_size=(1280,720),
+                     dst_size=(640,480),
                      src=np.float32([(0,0), (1, 0), (0,1), (1,1)]),
                      dst=np.float32([(0.43,0.65),(0.58,0.65),(0.1,1),(1,1)])):
     img_size = np.float32([(img.shape[1],img.shape[0])])
@@ -225,44 +225,61 @@ def draw_lanes(img, left_fit, right_fit):
     right = np.array([np.flipud(np.transpose(np.vstack([right_fit, ploty])))])
     points = np.hstack((left, right))
     
+    # 차선 영역 색칠
     cv2.fillPoly(color_img, np.int32([points]), (0, 200, 255))
+
+    # 차선 중심 계산
+    mid_fit = (left_fit + right_fit) / 2
+
+    # 중심선 좌표 계산
+    mid_points = np.array([np.transpose(np.vstack([mid_fit, ploty]))], dtype=np.int32)
+
+    # 중심선 그리기 (검은색 선)
+    for point in mid_points[0]:
+        cv2.circle(color_img, (int(point[0]), int(point[1])), 1, (0, 0, 0), -1)  # 검은 점으로 중심선 그리기
+        
+        
+    print("중심좌표 : ", point)
+
+    # 원근 복원 및 원본 이미지 위에 오버레이
     inv_perspective = inv_perspective_warp(color_img)
     inv_perspective = cv2.addWeighted(img, 1, inv_perspective, 0.7, 0)
     return inv_perspective
 
 def visualize_result(original_img, binary_img, warped_img, out_img, curves, lanes, ploty, curverad):
-    """
-    전체 파이프라인 단계별 결과를 시각화하는 함수
-    """
     left_curverad, right_curverad, center_offset = curverad
-    
-    fig, axs = plt.subplots(2,3, figsize=(18,10))
-    
-    axs[0,0].imshow(original_img)
-    axs[0,0].set_title('Original Image')
-    axs[0,0].axis('off')
 
-    axs[0,1].imshow(binary_img, cmap='gray')
-    axs[0,1].set_title('Binary Thresholded Image')
-    axs[0,1].axis('off')
+    fig, axs = plt.subplots(2, 3, figsize=(18, 10))
 
-    axs[0,2].imshow(warped_img, cmap='gray')
-    axs[0,2].set_title('Bird-Eye View (Warped)')
-    axs[0,2].axis('off')
+    axs[0, 0].imshow(original_img)
+    axs[0, 0].set_title('Original Image')
+    axs[0, 0].axis('off')
 
-    axs[1,0].imshow(out_img)
-    axs[1,0].set_title('Sliding Window Search')
-    axs[1,0].axis('off')
+    axs[0, 1].imshow(binary_img, cmap='gray')
+    axs[0, 1].set_title('Binary Thresholded Image')
+    axs[0, 1].axis('off')
+
+    axs[0, 2].imshow(warped_img, cmap='gray')
+    axs[0, 2].set_title('Bird-Eye View (Warped)')
+    axs[0, 2].axis('off')
+
+    axs[1, 0].imshow(out_img)
+    axs[1, 0].set_title('Sliding Window Search')
+    axs[1, 0].axis('off')
 
     img_with_lanes = draw_lanes(original_img, curves[0], curves[1])
-    axs[1,1].imshow(img_with_lanes)
-    axs[1,1].set_title('Lane Overlay on Original Image')
-    axs[1,1].axis('off')
+    axs[1, 1].imshow(img_with_lanes)
+    axs[1, 1].set_title('Lane Overlay on Original Image')
+    axs[1, 1].axis('off')
 
-    info_text = f'왼쪽 차선 곡률 반경 : {left_curverad:.2f} m\n오른쪽 차선 곡률 반경 : {right_curverad:.2f} m\nCenter Offset: {center_offset:.2f} m'
-    axs[1,2].text(0.1, 0.5, info_text, fontsize=14)
-    axs[1,2].axis('off')
-    axs[1,2].set_title('Curvature and Position Info')
+    # === 좌표 시각화 subplot 추가 ===
+    axs[1, 2].plot(curves[0], ploty, color='red', label='Left Lane')
+    axs[1, 2].plot(curves[1], ploty, color='blue', label='Right Lane')
+    axs[1, 2].invert_yaxis()
+    axs[1, 2].set_title('Lane Pixel Coordinates')
+    axs[1, 2].set_xlabel('X')
+    axs[1, 2].set_ylabel('Y')
+    axs[1, 2].legend()
 
     plt.tight_layout()
     plt.show()
@@ -270,26 +287,22 @@ def visualize_result(original_img, binary_img, warped_img, out_img, curves, lane
 if __name__ == "__main__":
     undistort_img()  # 보정 파라미터 저장 (한 번만 수행해도 됨)
     
-    img = cv2.imread('test_images/test6.jpg')
+    img = cv2.imread('test_images/test2.jpg')
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    img = cv2.resize(img, (640, 480))
 
     binary_img = pipeline(img)
-    warped_img = perspective_warp(binary_img, dst_size=(1280,720))
+    warped_img = perspective_warp(binary_img, dst_size=(640,480))
 
     out_img, curves, lanes, ploty = sliding_window(warped_img)
     curverad = get_curve(img, curves[0], curves[1])
 
     # 좌표값 프린트
-    print("=== 좌측 차선 x 좌표 샘플 ===")
+    print("=== left line x ===")
     print(curves[0][1])  # 왼쪽 차선 x 좌표 일부 출력
-    print("=== 우측 차선 x 좌표 샘플 ===")
+    print("=== right line x ===")
     print(curves[1][1])  # 오른쪽 차선 x 좌표 일부 출력
-    print("=== y 좌표 샘플 ===")
+    print("=== y sample ===")
     print(ploty[1])      # y 좌표 일부 출력
-
-    print("\n=== 좌측 차선 2차 다항식 계수 ===")
-    print(lanes[0])
-    print("=== 우측 차선 2차 다항식 계수 ===")
-    print(lanes[1])
 
     visualize_result(img, binary_img, warped_img, out_img, curves, lanes, ploty, curverad)
