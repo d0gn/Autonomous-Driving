@@ -129,6 +129,11 @@ sio = socketio.Server(cors_allowed_origins="*", ping_interval=5, ping_timeout=10
 # WSGI 애플리케이션 생성
 app = socketio.WSGIApp(sio)
 
+#web_server(main.py)에 연결할 클라이언트
+web_sio = socketio.Client()
+
+#web_server에 연결
+web_sio.connect('http://web_server:5000')
 
 # --- 이미지 처리 파이프라인 및 명령 결정 함수 ---
 def process_image_and_determine_command(image_np_bgr):
@@ -214,7 +219,7 @@ def process_image_and_determine_command(image_np_bgr):
     print(f"결정 명령: {command}")
     print("이미지 처리 종료료")
 
-    return command
+    return command, processed_image_np_bgr
 
 
 @sio.on('connect')
@@ -254,14 +259,23 @@ def handle_image_frame(sid, data):
              sio.emit('error', {'message': 'Failed to decode image'}, room=sid)
              print("--- SocketIO 이미지 수신 핸들러 종료 (오류) ---")
              return
-
+	
+        
         print("✅ 이미지 수신 및 디코딩 완료.")
 
         # --- 이미지 처리 파이프라인 함수 호출 ---
         # 이미 디코딩된 이미지 (BGR numpy 배열)를 전달
-        command_to_send = process_image_and_determine_command(image_np_bgr)
+        command_to_send, processed_image  = process_image_and_determine_command(image_np_bgr)
         # --------------------------
-
+        
+        # 처리 결과와 이미지(재인코딩된 Base64) 함께 보내기
+        _, jpeg_encoded = cv2.imencode('.jpg', processed_image)
+        jpeg_base64 = base64.b64encode(jpeg_encoded.tobytes()).decode('utf-8')
+        web_sio.emit('processed_result', {
+    'command': command_to_send,
+    'frame': jpeg_base64
+})
+        
         if command_to_send:
             print(f"📤 클라이언트 (SID: {sid})에 '{command_to_send}' 명령 전송 시도")
             sio.emit('command', {'command': command_to_send}, room=sid)
@@ -294,8 +308,8 @@ if __name__ == '__main__':
          print("YOLO 실패 객체검출 불가 ")
 
     # --- eventlet WSGI 서버 실행 ---
-    host = '192.168.137.164'
-    port = 5000
+    host = '0.0.0.0'
+    port = 5001
 
     print(f"서버를 시작 - {host}:{port} 에서 대기...")
     eventlet.wsgi.server(eventlet.listen((host, port)), app)
