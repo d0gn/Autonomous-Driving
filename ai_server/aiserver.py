@@ -129,6 +129,11 @@ sio = socketio.Server(cors_allowed_origins="*", ping_interval=5, ping_timeout=10
 # WSGI 애플리케이션 생성
 app = socketio.WSGIApp(sio)
 
+#web_server(main.py)에 연결할 클라이언트
+web_sio = socketio.Client()
+
+#web_server에 연결
+web_sio.connect('http://web_server:5000')
 
 # --- 이미지 처리 파이프라인 및 명령 결정 함수 ---
 def process_image_and_determine_command(image_np_bgr):
@@ -184,6 +189,8 @@ def process_image_and_determine_command(image_np_bgr):
     # 결정하고 'command' 변수에 할당
     print("명령 결정 ")
 
+    # --- 예시 명령 결정 로직 ---
+
     person_detected = False
     car_detected = False
 
@@ -210,9 +217,9 @@ def process_image_and_determine_command(image_np_bgr):
 
 
     print(f"결정 명령: {command}")
-    print("이미지 처리 종료")
+    print("이미지 처리 종료료")
 
-    return command
+    return command, processed_image_np_bgr
 
 
 @sio.on('connect')
@@ -236,10 +243,10 @@ def handle_ack(sid, data):
 @sio.on('image_frame')
 def handle_image_frame(sid, data):
     print(f"\n--- SocketIO 이미지 수신 핸들러 시작 (SID: {sid}) ---")
-    print("SocketIO 'image_frame' 이벤트로 이미지 데이터 수신")
+    print("📥 SocketIO 'image_frame' 이벤트로 이미지 데이터 수신")
 
     base64_image_string = data
-    print(f"수신된 Base64 이미지 데이터 길이: {len(base64_image_string)}")
+    print(f"💡 수신된 Base64 이미지 데이터 길이: {len(base64_image_string)}")
 
 
     try:
@@ -248,31 +255,40 @@ def handle_image_frame(sid, data):
         image_np_bgr = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
 
         if image_np_bgr is None:
-             print("오류: 이미지 디코딩 실패 (cv2.imdecode)")
+             print("🚨 오류: 이미지 디코딩 실패 (cv2.imdecode)")
              sio.emit('error', {'message': 'Failed to decode image'}, room=sid)
              print("--- SocketIO 이미지 수신 핸들러 종료 (오류) ---")
              return
-
-        print("이미지 수신 및 디코딩 완료.")
+	
+        
+        print("✅ 이미지 수신 및 디코딩 완료.")
 
         # --- 이미지 처리 파이프라인 함수 호출 ---
         # 이미 디코딩된 이미지 (BGR numpy 배열)를 전달
-        command_to_send = process_image_and_determine_command(image_np_bgr)
+        command_to_send, processed_image  = process_image_and_determine_command(image_np_bgr)
         # --------------------------
-
+        
+        # 처리 결과와 이미지(재인코딩된 Base64) 함께 보내기
+        _, jpeg_encoded = cv2.imencode('.jpg', processed_image)
+        jpeg_base64 = base64.b64encode(jpeg_encoded.tobytes()).decode('utf-8')
+        web_sio.emit('processed_result', {
+    'command': command_to_send,
+    'frame': jpeg_base64
+})
+        
         if command_to_send:
-            print(f"클라이언트 (SID: {sid})에 '{command_to_send}' 명령 전송 시도")
+            print(f"📤 클라이언트 (SID: {sid})에 '{command_to_send}' 명령 전송 시도")
             sio.emit('command', {'command': command_to_send}, room=sid)
-            print(f"'{command_to_send}' 명령 전송 완료")
+            print(f"➡️ '{command_to_send}' 명령 전송 완료")
         else:
-            print("보낼 명령이 결정되지 않았습니다.")
+            print("➡️ 보낼 명령이 결정되지 않았습니다.")
 
         # sio.emit('processing_done', {'status': 'success', 'command_sent': command_to_send}, room=sid)
 
         print("--- SocketIO 이미지 수신 핸들러 종료 (성공) ---")
 
     except Exception as e:
-        print(f"심각한 오류 발생: 이미지 처리 중 예외 발생 - {e}")
+        print(f"🚨 심각한 오류 발생: 이미지 처리 중 예외 발생 - {e}")
         sio.emit('error', {'message': f'Internal server error: {e}'}, room=sid)
         print("--- SocketIO 이미지 수신 핸들러 종료 (오류) ---")
         return
@@ -292,8 +308,8 @@ if __name__ == '__main__':
          print("YOLO 실패 객체검출 불가 ")
 
     # --- eventlet WSGI 서버 실행 ---
-    host = '192.168.137.164'
-    port = 5000
+    host = '0.0.0.0'
+    port = 5001
 
     print(f"서버를 시작 - {host}:{port} 에서 대기...")
     eventlet.wsgi.server(eventlet.listen((host, port)), app)
