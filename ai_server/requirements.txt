@@ -1,0 +1,9 @@
+torch
+torchvision
+opencv-python-headless
+numpy
+pillow
+python-socketio[eventlet]
+eventlet
+requests
+websocket_client
