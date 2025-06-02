@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from PIL import Image
-import derainhaze
+import models.derainhaze as derainhaze
 # ================================================
 # (B) TorchScript 혹은 .pth 로드 로직 수정
 # ================================================
