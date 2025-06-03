@@ -1,3 +1,4 @@
+#영상테스트용 코드 삭제요망
 import os
 import cv2
 import torch
