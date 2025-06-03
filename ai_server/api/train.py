@@ -1,3 +1,5 @@
+#업그레이드 전 디헤이징 훈련에 사용된코드
+#경우에 따라 필요할수있음
 import torch
 import torch.nn as nn
 import torchvision
