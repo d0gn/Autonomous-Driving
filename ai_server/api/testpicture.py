@@ -1,3 +1,4 @@
+#사진테스트용 코드 삭제요망
 import os
 import torch
 import torch.nn as nn
