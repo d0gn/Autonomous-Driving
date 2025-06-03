@@ -1,3 +1,4 @@
+#데이터셋을 불러오고 전처리하는 코드 경우에따라(훈련시) 필요함
 import os
 from glob import glob
 from typing import Tuple
