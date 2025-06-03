@@ -1,3 +1,4 @@
+#디헤이징 + 디레이닝의 훈련에 사용할때 쓰는코드 경우에 따라 필요할수있음
 import os
 from glob import glob
 from typing import Tuple
