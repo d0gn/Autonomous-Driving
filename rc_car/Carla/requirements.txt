@@ -1,0 +1,4 @@
+carla @ file:///C:/CARLA_0.9.15/WindowsNoEditor/PythonAPI/carla/dist/carla-0.9.15-cp37-cp37m-win_amd64.whl
+numpy==1.21.6
+opencv-python==4.11.0.86
+typing_extensions==4.4.0

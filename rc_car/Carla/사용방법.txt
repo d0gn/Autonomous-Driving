@@ -1,0 +1,44 @@
+
+-------------------carla 설치-----------------------
+
+carla 깃허브
+https://github.com/carla-simulator/carla/releases
+
+윈도우용 CARLA_0.9.15.zip 다운로드 -> C:/ 에 압축해제
+
+CarlaUE4.exe 실행
+
+-----------------파이썬 3.7 설치-------------------
+https://www.python.org/downloads/release/python-379/
+
+설치 시 반드시 "Add Python to PATH" 체크 → 다음 → "Customize installation"
+→ 다음 → 경로 설정 C:/Program Files/Python37 -> 설치
+
+cmd 터미널을 통해
+가상환경 생성 파이썬 ( 3.7 버젼을 사용 )
+"C:\Program Files\Python37\python.exe" -m venv venv37 
+위 에서 "C:\Program Files\Python37\python.exe" 경로는 다를 수 있음
+
+가상환경 삭제 명령어
+rmdir /s /q venve37
+위 에서 test ( 가상환경 명 )은 다를 수 있음
+
+가상환경 실행
+.\venv37\Scripts\activate
+
+가상환경 탈출
+deactivate
+
+
+------------------requirements 설치 --------------
+pip install -r requirements.txt
+
+requirements 의 carla 파일 위치는 다를 수 있음
+
+
+------------------ 스포너 실행 --------------------
+python carlaspawner.py
+
+or 
+
+python3 carlaspawner.py
