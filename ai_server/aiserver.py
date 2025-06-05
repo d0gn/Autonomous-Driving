@@ -19,6 +19,7 @@ import torch.nn as nn
 import torchvision
 import torch.backends.cudnn as cudnn
 from torchvision import transforms 
+import models.derainhaze as dh
 # import torch.optim
 
 # 모듈 폴더 경로 추가
@@ -75,7 +76,7 @@ def load_models():
         global_dehaze_net = None
     else:
         try:
-            checkpoint_path_relative = './checkpoints/dehazer.pth'
+            checkpoint_path_relative = './epoch60+datasetplus.pt'
             checkpoint_path = script_dir / checkpoint_path_relative
 
             print(f"디헤이징 체크포인트 경로 {checkpoint_path}")
@@ -84,7 +85,7 @@ def load_models():
                  print(f"디헤이징 체크포인트 확인 실패 {checkpoint_path}")
                  global_dehaze_net = None
             else:
-                global_dehaze_net = net.dehaze_net()
+                global_dehaze_net = dh.DerainNet()
                 global_dehaze_net.load_state_dict(torch.load(str(checkpoint_path), map_location=DEVICE))
                 global_dehaze_net.to(DEVICE)
                 global_dehaze_net.eval()
