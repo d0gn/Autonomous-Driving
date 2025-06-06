@@ -1,4 +1,4 @@
-#디헤이징 테스트코드 삭제요망
+#디헤이징부분 모듈분리 반드시 필요
 import torch
 import torchvision
 import numpy as np
