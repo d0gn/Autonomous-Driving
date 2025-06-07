@@ -7,3 +7,6 @@ python-socketio[eventlet]
 eventlet
 requests
 websocket_client
+scikit-image
+Flask
+flask_socketio

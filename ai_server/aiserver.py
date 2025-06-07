@@ -21,44 +21,9 @@ import torch.backends.cudnn as cudnn
 from torchvision import transforms 
 import models.derainhaze as dh
 # import torch.optim
-
-# 모듈 폴더 경로 추가
-script_dir = Path(__file__).parent
-model_dir = script_dir / 'api' 
-if not model_dir.exists():
-    print(f"디렉토리 존재 x: {model_dir}")
-else:
-    sys.path.append(str(model_dir))
-    print(f"'{model_dir}' 경로추가")
-script_dir = Path(__file__).parent
-model_dir = script_dir / 'models' 
-if not model_dir.exists():
-    print(f"디렉토리 존재 x: {model_dir}")
-else:
-    sys.path.append(str(model_dir))
-    print(f"'{model_dir}' 경로추가")
-# 디헤이징 model 임포트
-try:
-    import dehazer
-    print("dehazer 임포트 성공")
-except ImportError:
-    print("dehzer 임포트 실패")
-    dehazer = None
-try:
-    import net
-    print("net 임포트 성공")
-except ImportError:
-    print("net 임포트 실패")
-    dehazer = None
-
-# yolo 임포트
-try:
-    import yolodetect as yd 
-    print("yolo 임포트 성공")
-except ImportError:
-    print("yolo 임포트 실패")
-    yd = None
-
+import api.dehazer as dehazer
+import models.net as net
+import yolodetect as yd
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"모델에서 사용하는 장치 {DEVICE}")
@@ -71,28 +36,24 @@ def load_models():
 
     print("모델 로딩 시작")
     print("디헤이징 로딩 ")
-    if net is None or dehazer is None: 
-        print("모듈 임포트 실패")
-        global_dehaze_net = None
-    else:
-        try:
-            checkpoint_path_relative = './epoch60+datasetplus.pt'
-            checkpoint_path = script_dir / checkpoint_path_relative
 
-            print(f"디헤이징 체크포인트 경로 {checkpoint_path}")
+    try:
+        checkpoint_path = './epoch60+datasetplus.pt'
 
-            if not checkpoint_path.exists():
-                 print(f"디헤이징 체크포인트 확인 실패 {checkpoint_path}")
-                 global_dehaze_net = None
-            else:
-                global_dehaze_net = dh.DerainNet()
-                global_dehaze_net.load_state_dict(torch.load(str(checkpoint_path), map_location=DEVICE))
-                global_dehaze_net.to(DEVICE)
-                global_dehaze_net.eval()
-                print("디헤이징 로딩 완료")
-        except Exception as e:
-             print(f"디헤이징 로딩 실패: {e}")
-             global_dehaze_net = None
+        print(f"디헤이징 체크포인트 경로 {checkpoint_path}")
+
+        if not os.path.exists(checkpoint_path):
+                print(f"디헤이징 체크포인트 확인 실패 {checkpoint_path}")
+                global_dehaze_net = None
+        else:
+            global_dehaze_net = dh.DerainNet()
+            global_dehaze_net = torch.jit.load(checkpoint_path, map_location=DEVICE)
+            global_dehaze_net.to(DEVICE)
+            global_dehaze_net.eval()
+            print("디헤이징 로딩 완료")
+    except Exception as e:
+            print(f"디헤이징 로딩 실패: {e}")
+            global_dehaze_net = None
 
     print("YOLO 로딩")
     if yd is None:
@@ -134,7 +95,7 @@ app = socketio.WSGIApp(sio)
 web_sio = socketio.Client()
 
 #web_server에 연결
-web_sio.connect('http://web_server:5000')
+web_sio.connect('http://127.0.0.1:5000')
 
 # --- 이미지 처리 파이프라인 및 명령 결정 함수 ---
 def process_image_and_determine_command(image_np_bgr):
@@ -147,11 +108,9 @@ def process_image_and_determine_command(image_np_bgr):
          return None
 
     # --- 단계 1&2: 이미지 디헤이징 (모듈 함수 호출) ---
-    if dehazer is not None and global_dehaze_net is not None:
-         processed_image_np_bgr = dehazer.apply_dehazing(image_np_bgr, global_dehaze_net, DEVICE)
-    else:
-         print("디헤이징 모델 or 모듈 없음 ")
-         processed_image_np_bgr = image_np_bgr 
+
+    processed_image_np_bgr = dehazer.apply_dehazing(image_np_bgr, global_dehaze_net, DEVICE)
+
 
 
     # --- 단계 3&4: YOLO 객체 검출 및 결과 분석 ---
@@ -169,11 +128,11 @@ def process_image_and_determine_command(image_np_bgr):
                  print(f"YOLO 객체 검출 {len(detections)}개 검출됨.")
 
                  # 디버깅을 위해 검출 결과가 표시된 이미지를 파일로 저장할 수 있습니다.
-                 if annotated_img is not None:
-                     timestamp = int(time.time())
-                     output_filename = f"yolo_output_{timestamp}.jpg"
-                     cv2.imwrite(output_filename, annotated_img)
-                     print(f"YOLO 결과 저장 {output_filename}")
+                 #if annotated_img is not None:
+                     #timestamp = int(time.time())
+                     #output_filename = f"yolo_output_{timestamp}.jpg"
+                     #cv2.imwrite(output_filename, annotated_img)
+                     #print(f"YOLO 결과 저장 {output_filename}")
 
             else:
                 print("YOLO 검출 결과 없음 ")
@@ -241,8 +200,8 @@ def handle_ack(sid, data):
     print(f'클라이언트 (SID: {sid})로부터 ACK 수신: {data}')
 
 
-@sio.on('image_frame')
-def handle_image_frame(sid, data):
+
+'''def handle_image_frame(sid, data):
     print(f"\n--- SocketIO 이미지 수신 핸들러 시작 (SID: {sid}) ---")
     print("📥 SocketIO 'image_frame' 이벤트로 이미지 데이터 수신")
 
@@ -292,9 +251,61 @@ def handle_image_frame(sid, data):
         print(f"🚨 심각한 오류 발생: 이미지 처리 중 예외 발생 - {e}")
         sio.emit('error', {'message': f'Internal server error: {e}'}, room=sid)
         print("--- SocketIO 이미지 수신 핸들러 종료 (오류) ---")
+        return'''
+@sio.on('image_frame')
+def handle_image_frame(sid, data):
+    print(f"\n--- SocketIO 이미지 수신 핸들러 시작 (SID: {sid}) ---")
+    print("📥 SocketIO 'image_frame' 이벤트로 이미지 데이터 수신")
+
+    base64_image_string = data
+    print(f"💡 수신된 Base64 이미지 데이터 길이: {len(base64_image_string)}")
+
+    try:
+        # Base64 → NumPy 이미지 디코딩
+        image_bytes = base64.b64decode(base64_image_string)
+        npimg = np.frombuffer(image_bytes, np.uint8)
+        image_np_bgr = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
+
+        if image_np_bgr is None:
+            print("🚨 오류: 이미지 디코딩 실패 (cv2.imdecode)")
+            sio.emit('error', {'message': 'Failed to decode image'}, room=sid)
+            print("--- SocketIO 이미지 수신 핸들러 종료 (오류) ---")
+            return
+
+        print("이미지 수신 및 디코딩 완료.")
+
+        # 이미지 처리 → 명령 결정 및 처리 이미지 생성
+        command_to_send, processed_image = process_image_and_determine_command(image_np_bgr)
+
+        # 원본 & 처리 이미지 모두 Base64 인코딩
+        _, original_encoded = cv2.imencode('.jpg', image_np_bgr)
+        original_base64 = base64.b64encode(original_encoded.tobytes()).decode('utf-8')
+
+        _, processed_encoded = cv2.imencode('.jpg', processed_image)
+        processed_base64 = base64.b64encode(processed_encoded.tobytes()).decode('utf-8')
+
+        # 웹서버(web_sio)로 전송
+        web_sio.emit('processed_result', {
+            'command': command_to_send,
+            'original_frame': original_base64,
+            'processed_frame': processed_base64
+        })
+
+        # 클라이언트에게 명령 전송
+        if command_to_send:
+            print(f"📤 클라이언트 (SID: {sid})에 '{command_to_send}' 명령 전송 시도")
+            sio.emit('command', {'command': command_to_send}, room=sid)
+            print(f"➡️ '{command_to_send}' 명령 전송 완료")
+        else:
+            print("➡️ 보낼 명령이 결정되지 않았습니다.")
+
+        print("--- SocketIO 이미지 수신 핸들러 종료 (성공) ---")
+
+    except Exception as e:
+        print(f"🚨 심각한 오류 발생: 이미지 처리 중 예외 발생 - {e}")
+        sio.emit('error', {'message': f'Internal server error: {e}'}, room=sid)
+        print("--- SocketIO 이미지 수신 핸들러 종료 (오류) ---")
         return
-
-
 # 서버 실행 진입점
 if __name__ == '__main__':
     # --- 서버 시작 전에 모델들을 미리 로딩 ---

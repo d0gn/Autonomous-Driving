@@ -11,7 +11,6 @@ COPY . .
 # pip 업그레이드 후 requirements 설치
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
-
 EXPOSE 5001
 
 CMD ["python", "aiserver.py"]

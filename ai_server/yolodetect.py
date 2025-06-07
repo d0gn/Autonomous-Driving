@@ -21,7 +21,7 @@ from torchvision import transforms
 
 
 class YOLODetector:
-    def __init__(self, weights_path='yolov5s.pt', conf_thres=0.25, img_size=640, device='cpu'): # img_size 기본값 640으로 변경
+    def __init__(self, weights_path='yolov5s.pt', conf_thres=0.25, img_size=640, device='cuda'): # img_size 기본값 640으로 변경
         self.device = device
         print(f"💡 YOLODetector 사용 장치: {self.device}")
 

@@ -12,7 +12,7 @@ from PIL import Image
 from skimage.metrics import peak_signal_noise_ratio, structural_similarity
 import numpy as np
 from torchvision.models import VGG16_Weights
-import models.derainhaze as derainhaze
+import derainhaze as derainhaze
 import prepros
 import VGGPerceptual
 
@@ -85,10 +85,10 @@ if __name__ == "__main__":
     print("[Main] 준비 완료\n")
 
     # 5) 에폭 수 정의
-    num_epochs = 50  # 원하는 에폭 수로 설정하세요
+    num_epochs = 15  # 원하는 에폭 수로 설정하세요
     print(f"[Main] 학습 에폭 수: {num_epochs}\n")
     # Perceptual Loss용 VGG 추출기 생성
-    vgg_extractor = VGGPerceptual(requires_grad=False).to(device)
+    vgg_extractor = VGGPerceptual.VGGPerceptual(requires_grad=False).to(device)
 
     # λ (Perceptual Loss 가중치) 설정
     lambda_perc = 0.01

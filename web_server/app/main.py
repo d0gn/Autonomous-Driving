@@ -60,6 +60,23 @@ def handle_video_frame(data):
 @socketio.on('processed_result')
 def handle_processed_result(data):
     command = data.get("command")
+    original_frame = data.get("original_frame")  # 원본 영상
+    processed_frame = data.get("processed_frame")  # AI 처리 영상
+
+    print(f"[AI] 명령 수신: {command}")
+
+    # 모든 연결된 클라이언트에게 전송
+    with clients_lock:
+        for sid in connected_clients:
+            socketio.emit("ai_command", {"command": command}, to=sid)
+
+            if original_frame:
+                socketio.emit("video_original", original_frame, to=sid)
+            if processed_frame:
+                socketio.emit("video_dehazed", processed_frame, to=sid)
+'''@socketio.on('processed_result')
+def handle_processed_result(data):
+    command = data.get("command")
     processed_frame = data.get("frame")  # base64 인코딩된 이미지
 
     print(f"[AI] 명령 수신: {command}")
@@ -68,7 +85,7 @@ def handle_processed_result(data):
     with clients_lock:
         for sid in connected_clients:
             socketio.emit("ai_command", {"command": command}, to=sid)
-            socketio.emit("video_dehazed", processed_frame, to=sid)
+            socketio.emit("video_dehazed", processed_frame, to=sid)'''
 
 # 모드 변경 처리 (현재 미구현)
 @socketio.on("change_mode")

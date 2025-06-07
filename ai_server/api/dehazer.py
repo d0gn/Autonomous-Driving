@@ -8,17 +8,9 @@ from torchvision import transforms
 import os
 import sys
 from pathlib import Path
-
-script_dir = Path(Path(__file__).parent).parent
-model_dir = script_dir / 'models' 
-if not model_dir.exists():
-    print(f"디렉토리 존재 x: {model_dir}")
-else:
-    sys.path.append(str(model_dir))
-    print(f"'{model_dir}' 경로추가")
-
-import net
+import models.net as net
 import time
+import models.derainhaze
 
 def apply_dehazing(image_np_bgr, dehaze_model, device):
     if dehaze_model is None:
@@ -34,6 +26,7 @@ def apply_dehazing(image_np_bgr, dehaze_model, device):
     try:
         print("디헤이징 처리 ")
         image_np_rgb = cv2.cvtColor(image_np_bgr, cv2.COLOR_BGR2RGB)
+        image_np_rgb = cv2.resize(image_np_rgb, (500, 500), interpolation=cv2.INTER_LINEAR)
         image_tensor = torch.from_numpy(image_np_rgb.copy()).permute(2, 0, 1).float().unsqueeze(0) / 255.0
         image_tensor = image_tensor.to(device)
 
@@ -52,11 +45,11 @@ def apply_dehazing(image_np_bgr, dehaze_model, device):
 
         processed_image_np_bgr = dehazed_np_bgr # 디헤이징 성공 시 결과 이미지 사용
 
-        print("디헤이징 완료료")
+        print("디헤이징 완료")
 
-        timestamp = int(time.time())
-        cv2.imwrite(f"dehazed_output_{timestamp}.jpg", processed_image_np_bgr)
-        print(f"디헤이징 이미지 저장 dehazed_output_{timestamp}.jpg")
+        #timestamp = int(time.time())
+        #cv2.imwrite(f"dehazed_output_{timestamp}.jpg", processed_image_np_bgr)
+        #print(f"디헤이징 이미지 저장 dehazed_output_{timestamp}.jpg")
 
 
     except Exception as e:
