@@ -5,10 +5,11 @@ let pressedKeys = new Set();  //현재 누르고 있는 키들의 집합 정의
 let lastCommand = "";
 
 document.addEventListener("DOMContentLoaded", () => {
-  const modeBtn = document.getElementById("modeToggle");
-  const manualTip = document.getElementById("manualTip");
+  const autoModeBtn = document.getElementById("autoModeBtn");
+  const manualModeBtn = document.getElementById("manualModeBtn");
+  const manualUI = document.getElementById("manualUI");
   
-  // 원본 영상 수신
+    // 원본 영상 수신
   socket.on('video_original', function(data) {
     document.getElementById("video_original").src = "data:image/jpeg;base64," + data;
   });
@@ -17,18 +18,29 @@ document.addEventListener("DOMContentLoaded", () => {
   socket.on('video_dehazed', function(data) {
   document.getElementById("video_dehazed").src = "data:image/jpeg;base64," + data;
   });
+
   
-  modeBtn.addEventListener("click", () => {
-    mode = mode === "auto" ? "manual" : "auto";
-    modeBtn.textContent = `모드: ${mode === "auto" ? "자동" : "수동"} (변경하려면 클릭)`;
-    manualTip.style.display = mode === "manual" ? "block" : "none";
+  // 자동 모드 버튼 클릭
+  autoModeBtn.addEventListener("click", () => {
+    mode = "auto";
+    autoModeBtn.classList.add("selected");
+    manualModeBtn.classList.remove("selected");
 
-    if (mode === "auto"){ //자동모드로 변환시
-      pressedKeys.clear();  //현재 누르고 있는 키 초기화
-      socket.emit("manual_control", {command: "stop"});  //안전을 위하여 stop명령어 전송
-    }
+    manualUI.style.display = "none";
+    pressedKeys.clear();
+    lastCommand = "";
+    socket.emit("manual_control", { command: "stop" });
+    socket.emit("change_mode", { mode: "auto" });
+  });
 
-    socket.emit("change_mode", {mode});
+  // 수동 모드 버튼 클릭
+  manualModeBtn.addEventListener("click", () => {
+    mode = "manual";
+    manualModeBtn.classList.add("selected");
+    autoModeBtn.classList.remove("selected");
+
+    manualUI.style.display = "block";
+    socket.emit("change_mode", { mode: "manual" });
   });
 
   //키보드 키를 누를때
@@ -36,7 +48,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (mode !== "manual") return;
     if(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)){
       pressedKeys.add(e.key); //누른 키를 pressedKeys에 저장, 나중에 keyup할때 추적
-      handleKeyPress();   
+      handleKeyPress();
+      highlightKey(e.key);  // 🔵 가상 키보드 UI 하이라이트   
     }
   });
   
@@ -47,6 +60,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if(pressedKeys.has(e.key)){
       pressedKeys.delete(e.key);  //해당 키를 땠을때 pressedKeys에서 제거
       handleKeyPress(); 
+      unhighlightKey(e.key);  // 🔵 가상 키보드 UI 하이라이트
     }  
   });
 
@@ -78,5 +92,34 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function sendCommand(cmd){
     socket.emit("manual_control", {command: cmd});
+  }
+
+  // 서버로 명령 전송
+  function sendCommand(cmd) {
+    socket.emit("manual_control", { command: cmd });
+  }
+
+  // 🔵 가상 키보드 키 강조
+  function highlightKey(key) {
+    const keyMap = {
+      "ArrowUp": "key-up",
+      "ArrowDown": "key-down",
+      "ArrowLeft": "key-left",
+      "ArrowRight": "key-right"
+    };
+    const el = document.getElementById(keyMap[key]);
+    if (el) el.classList.add("active");
+  }
+
+  // 🔵 가상 키보드 키 강조 해제
+  function unhighlightKey(key) {
+    const keyMap = {
+      "ArrowUp": "key-up",
+      "ArrowDown": "key-down",
+      "ArrowLeft": "key-left",
+      "ArrowRight": "key-right"
+    };
+    const el = document.getElementById(keyMap[key]);
+    if (el) el.classList.remove("active");
   }
 });
