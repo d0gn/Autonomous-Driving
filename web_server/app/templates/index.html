@@ -12,58 +12,54 @@
     <h1>자율주행 자동차 제어 패널</h1>
   </header>
 
-<div class="main-layout">
-  <div class="control-panel">
-<div class="mode-buttons">
-  <button id="autoModeBtn" class="mode-btn selected">모드: 자동</button>
-  <button id="manualModeBtn" class="mode-btn">모드: 수동</button>
-</div>
-
-  <div id="manualUI" style="display: none;">
-    <p id="manualTip">방향키로 제어 가능 (↑ ↓ ← →)</p>
-    <div class="keyboard">
-      <div class="key-row">
-        <div class="key empty"></div>
-        <div class="key" id="key-up">↑</div>
-        <div class="key empty"></div>
+  <div class="main-layout">
+    <div class="control-panel">
+      <!-- ↓ 자동/수동 모드 전환 버튼 및 키보드 UI 주석 처리 시작 -->
+      <!--
+      <div class="mode-buttons">
+        <button id="autoModeBtn" class="mode-btn selected">모드: 자동</button>
+        <button id="manualModeBtn" class="mode-btn">모드: 수동</button>
       </div>
-      <div class="key-row">
-        <div class="key" id="key-left">←</div>
-        <div class="key" id="key-down">↓</div>
-        <div class="key" id="key-right">→</div>
+
+      <div id="manualUI" style="display: none;">
+        <p id="manualTip">방향키로 제어 가능 (↑ ↓ ← →)</p>
+        <div class="keyboard">
+          <div class="key-row">
+            <div class="key empty"></div>
+            <div class="key" id="key-up">↑</div>
+            <div class="key empty"></div>
+          </div>
+          <div class="key-row">
+            <div class="key" id="key-left">←</div>
+            <div class="key" id="key-down">↓</div>
+            <div class="key" id="key-right">→</div>
+          </div>
+        </div>
+      </div>
+      -->
+      <!-- ↑ 자동/수동 모드 전환 버튼 및 키보드 UI 주석 처리 끝 -->
+    </div>
+
+    <!-- 오른쪽 영상 피드 -->
+    <div class="video-container">
+      <div class="video-card">
+        <div class="camera-label">전방 카메라</div>
+        <img id="video_original" width="320" height="240">
+      </div>
+      <div class="video-card">
+        <div class="camera-label">Dehazed 전방</div>
+        <img id="video_dehazed" width="320" height="240">
+      </div>
+      <div class="video-card">
+        <div class="camera-label">후방 카메라</div>
+        <img id="video_original" width="320" height="240">
+      </div>
+      <div class="video-card">
+        <div class="camera-label">좌측 카메라</div>
+        <img id="video_original" width="320" height="240">
       </div>
     </div>
   </div>
-</div>
-
-  <!-- 오른쪽 영상 피드 -->
-  <div class="video-container">
-    <div class="video-card">
-      <div class="camera-label">전방 카메라</div>
-      <img id="video_original" width="320" height="240">
-    </div>
-    <div class="video-card">
-      <div class="camera-label">Dehazed 전방</div>
-      <img id="video_dehazed" width="320" height="240">
-    </div>
-    <div class="video-card">
-      <div class="camera-label">후방 카메라</div>
-      <img id="video_original" width="320" height="240">
-    </div>
-    <div class="video-card">
-      <div class="camera-label">좌측 카메라</div>
-      <img id="video_original" width="320" height="240">
-    </div>
-    <div class="video-card">
-      <div class="camera-label">우측 카메라</div>
-      <img id="video_original" width="320" height="240">
-    </div>
-    <div class="video-card">
-      <div class="camera-label">하단 카메라</div>
-      <img id="video_original" width="320" height="240">
-    </div>
-  </div>
-</div>
 
 </body>
 </html>
