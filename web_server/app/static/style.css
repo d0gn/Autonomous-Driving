@@ -27,13 +27,13 @@ h1 {
 
 .main-layout {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;  /* 가운데 정렬 */
+  padding: 20px;
 }
 
 /* === 제어 패널 === */
 .control-panel {
-  width: 220px;
-  text-align: left;
+  display: none;  /* 필요 없으면 완전히 숨김 */
 }
 
 #modeToggle {
@@ -100,14 +100,17 @@ h1 {
 /* === 영상 카드 === */
 .video-container {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 20px;
-  flex-grow: 1;
   padding-left: 20px;
+
+  width: 1040px; 
+  margin: 0 auto; /* 가로 중앙 정렬 */
 }
 
 .video-card {
-  background-color: #ffffff;
+  width: 500px;    
+  height: 500px;      
   border: 1px solid #e0e0e0;
   border-radius: 10px;
   padding: 10px;
@@ -128,8 +131,8 @@ h1 {
 }
 
 .video-card img {
-  width: 100%;
-  height: auto;
+  width: 500px;
+  height: 500px;
   border-radius: 8px;
   border: none;
   box-shadow: none;
