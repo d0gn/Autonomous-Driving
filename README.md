@@ -1,6 +1,7 @@
 ## 1. 프로젝트 소개
 
-본 프로젝트는 악천후 환경(비/안개/렌즈 빗방울)에서 촬영된 영상을 실시간으로 복원하고, 객체 탐지를 수행하는 AI 기반 자율주행 보조 시스템입니다.
+본 프로젝트는 악천후 환경(비/안개/렌즈 빗방울)에서 촬영된 영상을 실시간으로 복원하고, 객체 탐지를 수행하는 AI 서버입니다.
+(https://github.com/meo-yeong/derain_dedrop_dehaze) 해당 모델을 사용하였습니다.
 라즈베리파이, 웹 서버, AI 서버 간 실시간 데이터 전송은 Socket.IO기반으로 이루어지며, 전송·처리 등의 파이프라인을 제공합니다.
 
 ## 2. 주요기능
@@ -92,7 +93,8 @@ def handle_processed_result(data):
 -   AI서버의 처리된 결과를 클라이언트(웹 브라우저, 사용자)에게 송신
 
 ### 시스템 아키텍처
-![UI 화면](Architecture.png)
+<img width="725" height="420" alt="architecture" src="https://github.com/user-attachments/assets/77ccb65e-3446-4cf2-9de7-07c4249056d5" />
+
 
 ## 4. 필요 환경
 다음 패키지는 개발 환경에서 직접 실행할때 필요로 합니다.
@@ -114,7 +116,8 @@ def handle_processed_result(data):
 
 ## 6. 실행 결과
 ### 웹 브라우저 사용자 화면
-![UI 화면](result.png)
+<img width="824" height="485" alt="result" src="https://github.com/user-attachments/assets/522b1c71-b061-46e6-8606-f2e8f9ad47cb" />
+
 
 ## 7.개발자
 <table>
