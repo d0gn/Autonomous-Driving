@@ -12,102 +12,59 @@ from skimage.metrics import peak_signal_noise_ratio, structural_similarity
 import numpy as np
 from torchvision.models import VGG16_Weights
 
-# ================================================
-# 2) 모델 정의: DerainNet (Joint Deraining & Dehazing)
-# ================================================
-class DerainNet(nn.Module):
-    """
-    Sun et al. 논문 구조 기반 Joint Deraining & Dehazing 모델
-    """
+
+class TBAodNet(nn.Module):
     def __init__(self):
-        super(DerainNet, self).__init__()
-        print("[Model] DerainNet 초기화 중...")
+        super(TBAodNet, self).__init__()
+        print("[Model] Multi-Branch AODNet 초기화 중...")
 
-        # ----- K1 브랜치 -----
-        self.k1_conv_d1_1 = nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.k1_bn_d1_1   = nn.BatchNorm2d(16)
-        self.k1_conv_d1_2 = nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.k1_bn_d1_2   = nn.BatchNorm2d(16)
+        # ----- K1 Branch (작은 스케일 특징 담당) -----
+        self.k1_conv1 = nn.Conv2d(3, 3, kernel_size=1)
+        self.k1_conv2 = nn.Conv2d(3, 3, kernel_size=3, padding=1)
+        self.k1_conv3 = nn.Conv2d(6, 3, kernel_size=5, padding=2)
 
-        self.k1_conv_d2_1 = nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=2, dilation=2)
-        self.k1_bn_d2_1   = nn.BatchNorm2d(16)
-        self.k1_conv_d2_2 = nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=2, dilation=2)
-        self.k1_bn_d2_2   = nn.BatchNorm2d(16)
+        # ----- K2 Branch (중간 스케일 특징 담당) -----
+        self.k2_conv1 = nn.Conv2d(3, 3, kernel_size=3, padding=1)
+        self.k2_conv2 = nn.Conv2d(3, 3, kernel_size=5, padding=2)
+        self.k2_conv3 = nn.Conv2d(6, 3, kernel_size=7, padding=3)
+        
+        # ----- K3 Branch (큰 스케일 특징 담당) -----
+        self.k3_conv1 = nn.Conv2d(3, 3, kernel_size=5, padding=2)
+        self.k3_conv2 = nn.Conv2d(3, 3, kernel_size=7, padding=3)
+        self.k3_conv3 = nn.Conv2d(6, 3, kernel_size=9, padding=4)
 
-        self.k1_conv_d3_1 = nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=3, dilation=3)
-        self.k1_bn_d3_1   = nn.BatchNorm2d(16)
-        self.k1_conv_d3_2 = nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=3, dilation=3)
-        self.k1_bn_d3_2   = nn.BatchNorm2d(16)
+        # ----- 3개 브랜치의 결과를 융합(Fusion)하는 레이어 -----
+        # 각 브랜치에서 3채널 결과가 나오므로 총 9채널을 입력받아 최종 3채널 k로 만듦
+        self.fusion_conv = nn.Conv2d(9, 3, kernel_size=3, padding=1)
+        
+        self.b = 1 # 대기 산란 모델의 상수
 
-        self.k1_fuse_conv1 = nn.Conv2d(16 * 3, 32, kernel_size=1, stride=1, padding=0)
-        self.k1_bn_fuse1   = nn.BatchNorm2d(32)
-        self.k1_fuse_conv2 = nn.Conv2d(32, 16, kernel_size=1, stride=1, padding=0)
-        self.k1_bn_fuse2   = nn.BatchNorm2d(16)
+        print("[Model] Multi-Branch AODNet 초기화 완료\n")
 
-        self.k1_out = nn.Conv2d(16, 3, kernel_size=1, stride=1, padding=0)
-
-        # ----- K2 브랜치 -----
-        self.k2_conv_d1_1 = nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.k2_bn_d1_1   = nn.BatchNorm2d(16)
-        self.k2_conv_d1_2 = nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=1, dilation=1)
-        self.k2_bn_d1_2   = nn.BatchNorm2d(16)
-
-        self.k2_conv_d2_1 = nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=2, dilation=2)
-        self.k2_bn_d2_1   = nn.BatchNorm2d(16)
-        self.k2_conv_d2_2 = nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=2, dilation=2)
-        self.k2_bn_d2_2   = nn.BatchNorm2d(16)
-
-        self.k2_conv_d3_1 = nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=3, dilation=3)
-        self.k2_bn_d3_1   = nn.BatchNorm2d(16)
-        self.k2_conv_d3_2 = nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=3, dilation=3)
-        self.k2_bn_d3_2   = nn.BatchNorm2d(16)
-
-        self.k2_fuse_conv1 = nn.Conv2d(16 * 3, 32, kernel_size=1, stride=1, padding=0)
-        self.k2_bn_fuse1   = nn.BatchNorm2d(32)
-        self.k2_fuse_conv2 = nn.Conv2d(32, 16, kernel_size=1, stride=1, padding=0)
-        self.k2_bn_fuse2   = nn.BatchNorm2d(16)
-
-        self.k2_out = nn.Conv2d(16, 3, kernel_size=1, stride=1, padding=0)
-
-        self.negative_slope = 0.2  # LeakyReLU 기울기 상수
-
-        print("[Model] DerainNet 초기화 완료\n")
 
     def forward(self, x):
-        # ========== K1 브랜치 ==========
-        f1 = F.leaky_relu(self.k1_bn_d1_1(self.k1_conv_d1_1(x)), negative_slope=self.negative_slope)
-        f1 = F.leaky_relu(self.k1_bn_d1_2(self.k1_conv_d1_2(f1)), negative_slope=self.negative_slope)
+        # --- K1 Branch 연산 ---
+        x1_1 = F.relu(self.k1_conv1(x))
+        x1_2 = F.relu(self.k1_conv2(x1_1))
+        k1_cat = torch.cat((x1_1, x1_2), dim=1)
+        k1 = F.relu(self.k1_conv3(k1_cat)) # K1 결과
 
-        f2 = F.leaky_relu(self.k1_bn_d2_1(self.k1_conv_d2_1(f1)), negative_slope=self.negative_slope)
-        f2 = F.leaky_relu(self.k1_bn_d2_2(self.k1_conv_d2_2(f2)), negative_slope=self.negative_slope)
+        # --- K2 Branch 연산 ---
+        x2_1 = F.relu(self.k2_conv1(x))
+        x2_2 = F.relu(self.k2_conv2(x2_1))
+        k2_cat = torch.cat((x2_1, x2_2), dim=1)
+        k2 = F.relu(self.k2_conv3(k2_cat)) # K2 결과
 
-        f3 = F.leaky_relu(self.k1_bn_d3_1(self.k1_conv_d3_1(f2)), negative_slope=self.negative_slope)
-        f3 = F.leaky_relu(self.k1_bn_d3_2(self.k1_conv_d3_2(f3)), negative_slope=self.negative_slope)
+        # --- K3 Branch 연산 ---
+        x3_1 = F.relu(self.k3_conv1(x))
+        x3_2 = F.relu(self.k3_conv2(x3_1))
+        k3_cat = torch.cat((x3_1, x3_2), dim=1)
+        k3 = F.relu(self.k3_conv3(k3_cat)) # K3 결과
 
-        fuse1 = torch.cat([f1, f2, f3], dim=1)                      # (B,48,H,W)
-        fuse1 = F.relu(self.k1_bn_fuse1(self.k1_fuse_conv1(fuse1))) # (B,32,H,W)
-        fuse1 = F.relu(self.k1_bn_fuse2(self.k1_fuse_conv2(fuse1))) # (B,16,H,W)
+        # --- Fusion 단계 ---
+        k_fused = torch.cat((k1, k2, k3), dim=1)
+        k_final = F.relu(self.fusion_conv(k_fused)) # 최종 K
 
-        K1 = self.k1_out(fuse1)  # (B,3,H,W)
-
-        # ========== K2 브랜치 ==========
-        g1 = F.leaky_relu(self.k2_bn_d1_1(self.k2_conv_d1_1(x)), negative_slope=self.negative_slope)
-        g1 = F.leaky_relu(self.k2_bn_d1_2(self.k2_conv_d1_2(g1)), negative_slope=self.negative_slope)
-
-        g2 = F.leaky_relu(self.k2_bn_d2_1(self.k2_conv_d2_1(g1)), negative_slope=self.negative_slope)
-        g2 = F.leaky_relu(self.k2_bn_d2_2(self.k2_conv_d2_2(g2)), negative_slope=self.negative_slope)
-
-        g3 = F.leaky_relu(self.k2_bn_d3_1(self.k2_conv_d3_1(g2)), negative_slope=self.negative_slope)
-        g3 = F.leaky_relu(self.k2_bn_d3_2(self.k2_conv_d3_2(g3)), negative_slope=self.negative_slope)
-
-        fuse2 = torch.cat([g1, g2, g3], dim=1)                      # (B,48,H,W)
-        fuse2 = F.relu(self.k2_bn_fuse1(self.k2_fuse_conv1(fuse2))) # (B,32,H,W)
-        fuse2 = F.relu(self.k2_bn_fuse2(self.k2_fuse_conv2(fuse2))) # (B,16,H,W)
-
-        K2 = self.k2_out(fuse2)  # (B,3,H,W)
-
-        # ========== 최종 복원 식 ==========
-        diff = K1 - K2           # (B,3,H,W)
-        clean = diff * x - diff  # (B,3,H,W)
-
-        return clean
+        # --- AOD-Net 복원 공식 적용 ---
+        output = k_final * x - k_final + self.b
+        return F.relu(output)

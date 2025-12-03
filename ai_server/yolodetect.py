@@ -21,13 +21,13 @@ from torchvision import transforms
 
 
 class YOLODetector:
-    def __init__(self, weights_path='yolov5s.pt', conf_thres=0.25, img_size=640, device='cpu'): # img_size 기본값 640으로 변경
+    def __init__(self, weights_path='./pt/yolov5s.pt', conf_thres=0.25, img_size=640, device='cpu'): # img_size 기본값 640으로 변경
         self.device = device
         print(f"💡 YOLODetector 사용 장치: {self.device}")
 
         # 가중치 파일 존재 확인
         if not os.path.exists(weights_path):
-             print(f"🚨 경고: YOLO 가중치 파일이 로컬에 없습니다: {weights_path}")
+             print(f"경고: YOLO 가중치 파일이 로컬에 없습니다: {weights_path}")
              print("torch.hub에서 표준 모델 이름으로 다운로드 시도합니다.")
              # 로컬에 없으면 파일 이름만 사용하여 torch.hub 자동 다운로드 시도
              weights_path = os.path.basename(weights_path)
@@ -35,7 +35,7 @@ class YOLODetector:
                   
                  pass 
              else: 
-                  print(f"🚨 오류: YOLO 가중치 파일({weights_path})이 로컬에 없으며 표준 모델 이름이 아닐 수 있습니다.")
+                  print(f"오류: YOLO 가중치 파일({weights_path})이 로컬에 없으며 표준 모델 이름이 아닐 수 있습니다.")
                   
 
         try:
@@ -48,9 +48,9 @@ class YOLODetector:
             self.model.iou = 0.45 # Non-Maximum Suppression (NMS) IoU 임계값
             # YOLOv5 모델의 입력 이미지 사이즈 설정
             self.model.imgsz = img_size
-            print(f"✅ YOLO 모델 로딩 완료: {weights_path}, img_size={self.model.imgsz}")
+            print(f"YOLO 모델 로딩 완료: {weights_path}, img_size={self.model.imgsz}")
         except Exception as e:
-             print(f"❌ YOLO 모델 로딩 실패: {e}")
+             print(f"YOLO 모델 로딩 실패: {e}")
              self.model = None # 로딩 실패 시 모델을 None으로 설정하여 이후 호출에서 오류 방지
              # 실제 운영 환경에서는 여기서 예외를 다시 발생시키거나 서버를 종료하는 것을 고려해야 합니다.
 
@@ -58,11 +58,11 @@ class YOLODetector:
     def detect_array(self, img_array):
         
         if self.model is None:
-            print("🚨 YOLO 모델이 로딩되지 않았습니다. 객체 검출 건너뜜.")
+            print("YOLO 모델이 로딩되지 않았습니다. 객체 검출 건너뜜.")
             return None, None
 
         if img_array is None or img_array.size == 0:
-             print("🚨 detect_array: 유효하지 않은 입력 이미지입니다.")
+             print("detect_array: 유효하지 않은 입력 이미지입니다.")
              return None, None
 
         try:
@@ -70,7 +70,7 @@ class YOLODetector:
             annotated_img = results.render()[0] # 배치 중 첫 번째 이미지 결과
             return results, annotated_img
         except Exception as e:
-            print(f"❌ YOLO detect_array 중 오류 발생: {e}")
+            print(f"YOLO detect_array 중 오류 발생: {e}")
             return None, None
 
     def extract_detections(self, results):
